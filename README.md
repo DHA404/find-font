@@ -1,5 +1,7 @@
 # find-font
 
+[![build](https://github.com/DHA404/find-font/actions/workflows/build.yml/badge.svg)](https://github.com/DHA404/find-font/actions/workflows/build.yml)
+
 Windows 本地字体预览与管理工具。WPF + .NET 8 + MVVM，单文件分发，附带一个 .NET Framework 4.8 引导器负责运行时检测。
 
 ![find-font 主界面](docs/screenshot.png)

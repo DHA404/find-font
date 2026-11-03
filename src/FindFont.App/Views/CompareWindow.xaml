@@ -1,0 +1,82 @@
+<Window x:Class="FindFont.App.Views.CompareWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FindFont.App.ViewModels"
+        xmlns:models="clr-namespace:FindFont.App.Models"
+        Title="多字体对比"
+        Width="1100" Height="640" MinWidth="720" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackground}"
+        UseLayoutRounding="True">
+
+    <Window.DataContext>
+        <vm:CompareViewModel />
+    </Window.DataContext>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource FontCard}">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Left" Text="对比文字" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondary}" Margin="0,0,8,0" />
+                <ComboBox DockPanel.Dock="Right" Width="86" Margin="12,0,0,0" Style="{StaticResource FlatComboBox}"
+                          ItemsSource="{Binding FontSizeOptions}" SelectedItem="{Binding PreviewFontSize}" />
+                <TextBox Style="{StaticResource FlatTextBox}"
+                         Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
+            </DockPanel>
+        </Border>
+
+        <ItemsControl Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Items}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type models:FontItem}">
+                    <Border Style="{StaticResource FontCard}" Padding="18,14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <DockPanel Grid.Row="0">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding BestName}" FontSize="13"
+                                           FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                <Button DockPanel.Dock="Right" Content="移除" FontSize="11"
+                                        Style="{StaticResource GhostButton}"
+                                        Command="{Binding DataContext.RemoveCommand,
+                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                                <TextBlock Text="{Binding StyleName}" FontSize="11" Margin="10,1,0,0"
+                                           Foreground="{StaticResource TextSecondary}" />
+                            </DockPanel>
+
+                            <Border Grid.Row="1" Height="150" ClipToBounds="True" Margin="0,8,0,0">
+                                <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                    <Image.Source>
+                                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1040x150">
+                                            <Binding />
+                                            <Binding Path="DataContext.PreviewText"
+                                                     RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                            <Binding Path="DataContext.PreviewFontSize"
+                                                     RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                            <Binding Path="PreviewBitmap" />
+                                        </MultiBinding>
+                                    </Image.Source>
+                                </Image>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</Window>

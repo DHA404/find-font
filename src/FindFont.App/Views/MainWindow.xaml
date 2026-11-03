@@ -1,0 +1,211 @@
+<Window x:Class="FindFont.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FindFont.App.ViewModels"
+        xmlns:models="clr-namespace:FindFont.App.Models"
+        Title="find-font · 本地字体预览与管理"
+        Width="1180" Height="780" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackground}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 顶部：搜索 + 预览文本 + 字号 -->
+        <Border Grid.Row="0" Style="{StaticResource FontCard}" Padding="14,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Vertical">
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="3*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="搜索"
+                                   Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="预览文字（所有字体实时同步）"
+                                   Foreground="{StaticResource TextSecondary}" Margin="16,0,0,4" />
+
+                        <TextBox Grid.Row="1" Grid.Column="0" Style="{StaticResource FlatTextBox}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=0}"
+                                 ToolTip="输入字体名、文件名或样式名，自动 300ms 防抖" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource FlatTextBox}" Margin="16,0,0,0"
+                                 Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                 ToolTip="所有字体的预览文字会实时同步" />
+                    </Grid>
+
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="分类" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondary}" Margin="0,0,8,0" />
+                        <ComboBox DockPanel.Dock="Left" Width="110" Style="{StaticResource FlatComboBox}"
+                                  ItemsSource="{Binding CategoryOptions}"
+                                  SelectedIndex="{Binding SelectedCategoryIndex}" />
+
+                        <TextBlock Text="风格" VerticalAlignment="Center" Margin="16,0,8,0"
+                                   Foreground="{StaticResource TextSecondary}" />
+                        <ComboBox DockPanel.Dock="Left" Width="110" Style="{StaticResource FlatComboBox}"
+                                  ItemsSource="{Binding StyleOptions}"
+                                  SelectedIndex="{Binding SelectedStyleIndex}" />
+
+                        <TextBlock Text="字号" VerticalAlignment="Center" Margin="16,0,8,0"
+                                   Foreground="{StaticResource TextSecondary}" />
+                        <ComboBox DockPanel.Dock="Left" Width="86" Style="{StaticResource FlatComboBox}"
+                                  ItemsSource="{Binding FontSizeOptions}"
+                                  SelectedItem="{Binding PreviewFontSize}" />
+
+                        <CheckBox DockPanel.Dock="Left" Content="只看异常" VerticalAlignment="Center"
+                                  Margin="16,0,0,0" IsChecked="{Binding ShowBrokenOnly}" />
+                    </DockPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
+                    <Button Content="安装字体" Style="{StaticResource AccentButton}"
+                            Command="{Binding InstallFromFilesCommand}" Margin="0,0,8,0" />
+                    <Button Content="对比" Style="{StaticResource GhostButton}"
+                            Click="OnCompareClick" Margin="0,0,8,0" />
+                    <Button Content="卸载" Style="{StaticResource GhostButton}"
+                            Command="{Binding UninstallSelectedCommand}" Margin="0,0,8,0" />
+                    <Button Content="清理异常" Style="{StaticResource GhostButton}"
+                            Command="{Binding CleanBrokenCommand}" Margin="0,0,8,0" />
+                    <Button Content="刷新" Style="{StaticResource GhostButton}"
+                            Command="{Binding RefreshCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 进度条 -->
+        <ProgressBar Grid.Row="1" Height="3" Margin="2,8,2,0"
+                     Minimum="0" Maximum="1" Value="{Binding LoadProgress}"
+                     Foreground="{StaticResource AccentBrush}" Background="Transparent"
+                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+
+        <!-- 字体列表 -->
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ListBox Grid.Column="0"
+                     x:Name="FontList"
+                     ItemsSource="{Binding VisibleFonts}"
+                     SelectionMode="Extended"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     ItemContainerStyle="{StaticResource FontListItem}"
+                     SelectionChanged="OnFontSelectionChanged">
+
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:FontItem}">
+                        <Border Style="{StaticResource FontCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <!-- 字体预览：位图渲染，禁止直接绑定 FontFamily -->
+                                    <Border Height="56" ClipToBounds="True" Background="Transparent">
+                                        <Grid>
+                                            <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                   RenderOptions.BitmapScalingMode="NearestNeighbor">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="900x56">
+                                                        <Binding />
+                                                        <Binding Path="DataContext.PreviewText"
+                                                                 RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                                        <Binding Path="DataContext.PreviewFontSize"
+                                                                 RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                                        <Binding Path="PreviewBitmap" />
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+                                            <TextBlock Text="正在渲染…" FontSize="12" Foreground="#C3CAD8"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Left" Margin="2,0,0,0"
+                                                       Visibility="{Binding PreviewBitmap, Converter={StaticResource NullToVisibility}}" />
+                                            <TextBlock Text="{Binding StatusMessage}" FontSize="12" Foreground="{StaticResource DangerBrush}"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Left" Margin="2,0,0,0"
+                                                       Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding BestName}" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextPrimary}" />
+                                        <TextBlock Text="{Binding StyleName}" FontSize="12" Margin="8,0,0,0"
+                                                   Foreground="{StaticResource TextSecondary}" />
+                                        <TextBlock Text="{Binding FileName}" FontSize="11" Margin="10,1,0,0"
+                                                   Foreground="#AAB2C0" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Background="#FFF1F0" CornerRadius="4" Padding="6,2"
+                                            Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="{Binding StatusMessage}" FontSize="11"
+                                                   Foreground="{StaticResource DangerBrush}" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- 详情面板 -->
+            <Border Grid.Column="1" Width="300" Style="{StaticResource FontCard}" Margin="12,0,0,8"
+                    VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="字体详情" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}" Margin="0,0,0,8" />
+                    <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" FontSize="12" LineHeight="20"
+                               Foreground="{StaticResource TextSecondary}" />
+                    <TextBlock Text="提示：按住 Ctrl 可多选字体后点击“对比”。" TextWrapping="Wrap"
+                               FontSize="11" Foreground="#AAB2C0" Margin="0,12,0,0" />
+                    <Button Content="打开所在文件夹" Style="{StaticResource GhostButton}" Margin="0,12,0,0"
+                            Command="{Binding OpenFontFolderCommand}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 状态栏 -->
+        <DockPanel Grid.Row="3" Margin="2,6,2,0">
+            <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" FontSize="12"
+                       Foreground="{StaticResource TextSecondary}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding DetailText}" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                       TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+    </Grid>
+</Window>

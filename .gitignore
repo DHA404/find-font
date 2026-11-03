@@ -1,0 +1,9 @@
+bin/
+obj/
+.build/
+.nuget/
+*.user
+*.suo
+.vs/
+publish/
+dist/

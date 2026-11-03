@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FindFont.App/FindFont.App.csproj" />
+    <Project Path="src/FindFont.Launcher/FindFont.Launcher.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FindFont.SmokeTests/FindFont.SmokeTests.csproj" />
+  </Folder>
+</Solution>

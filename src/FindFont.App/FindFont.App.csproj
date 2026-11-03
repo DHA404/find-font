@@ -10,7 +10,6 @@
     <AssemblyName>FindFont.App</AssemblyName>
     <RootNamespace>FindFont.App</RootNamespace>
     <ApplicationIcon></ApplicationIcon>
-    <Version>0.1.0-alpha</Version>
     <AssemblyTitle>find-font</AssemblyTitle>
     <Product>find-font</Product>
     <SatelliteResourceLanguages>en;zh-Hans</SatelliteResourceLanguages>

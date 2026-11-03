@@ -13,6 +13,28 @@ internal static class Program
     private static int _failed;
     private static FindFont.App.App? _app;
 
+    /// <summary>
+    /// 仓库根目录。测试在 bin/Debug/net8.0-windows 下运行，
+    /// 往上找到含 version.txt 的那一级为止。
+    /// </summary>
+    private static readonly string RootDirectory = FindRepoRoot();
+
+    private static string FindRepoRoot()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "version.txt")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -38,6 +60,7 @@ internal static class Program
         Run("动效助手遵循系统设置", TestMotion);
         Run("窗口材质回退不抛异常", TestBackdropFallback);
         Run("尺寸与模板资源", TestLayoutAndTemplates);
+        Run("版本号来自 version.txt", TestVersionWiring);
 
         Console.WriteLine(new string('-', 60));
         Console.WriteLine($"通过 {_passed} 项，失败 {_failed} 项");
@@ -378,6 +401,23 @@ internal static class Program
 
         main.Close();
         compare.Close();
+    }
+
+    private static void TestVersionWiring()
+    {
+        var expected = File.ReadAllText(Path.Combine(RootDirectory, "version.txt")).Trim();
+        Check(expected.Length > 0, "version.txt 不能为空");
+
+        var actual = FindFont.App.Helpers.AppInfo.Version;
+        Check(actual == expected, $"程序集版本 {actual} 应与 version.txt 的 {expected} 一致");
+
+        Check(FindFont.App.Helpers.AppInfo.DisplayVersion.EndsWith(expected),
+            "DisplayVersion 应包含 version.txt 里的版本号");
+
+        var vm = new FindFont.App.ViewModels.MainViewModel();
+        Check(vm.AppVersion == expected, "主视图模型应暴露同一个版本号");
+
+        Check(vm.AppVersion.Split('.').Length >= 3, "版本号至少三段，便于 tag 与 zip 命名对齐");
     }
 
     /// <summary>动效参数必须是「三个时长 + 一条缓动」，且系统关掉动画时整体退化为零时长。</summary>

@@ -22,6 +22,19 @@ jobs:
           dotnet-version: |
             8.0.x
 
+      # 版本号只写在 version.txt 里。tag 与它不一致时直接失败，
+      # 否则会出现「用新 tag 发旧版本号」这种对不上的发布。
+      - name: Check tag matches version.txt
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = (Get-Content version.txt -Raw).Trim()
+          $tag = "${{ github.ref_name }}"
+          if ("v$version" -ne $tag) {
+            Write-Error "tag $tag 与 version.txt ($version) 不一致，请先改 version.txt"
+            exit 1
+          }
+
       - name: Restore
         run: dotnet restore FindFont.slnx
 
@@ -47,12 +60,13 @@ jobs:
           # 调试符号对使用者无意义，且会让未压缩体积翻倍。
           Get-ChildItem publish -Filter *.pdb -Recurse | Remove-Item -Force
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path "publish/*" -DestinationPath "dist/find-font-win-x64.zip" -Force
+          $version = (Get-Content version.txt -Raw).Trim()
+          Compress-Archive -Path "publish/*" -DestinationPath "dist/find-font-$version-win-x64.zip" -Force
 
       - uses: actions/upload-artifact@v4
         with:
           name: find-font-win-x64
-          path: dist/find-font-win-x64.zip
+          path: dist/find-font-*-win-x64.zip
           if-no-files-found: error
 
       # 只在 tag 上跑，且 release 正文由人工维护（generate_release_notes 会用
@@ -61,5 +75,5 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/find-font-win-x64.zip
+          files: dist/find-font-*-win-x64.zip
           generate_release_notes: false

@@ -43,7 +43,8 @@
                     <Run Text="{Binding TotalCount, Mode=OneWay}" />
                     <Run Text=" 个字体 · " />
                     <Run Text="{Binding BrokenCount, Mode=OneWay}" />
-                    <Run Text=" 个失效登记" />
+                    <Run Text=" 个失效登记 · " />
+                    <Run Text="{Binding AppVersionDisplay, Mode=OneWay}" />
                 </TextBlock>
             </StackPanel>
 

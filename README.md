@@ -16,6 +16,20 @@ Windows 本地字体预览与管理工具。WPF + .NET 8 + MVVM，单文件分�
 
 Windows 自带的字体查看器只能看文件名，无法一眼看清一个字体在中英文混排下长什么样，也不能批量清理注册表里指向已删除文件的「僵尸字体」。find-font 把本机所有字体按真实字形渲染成缩略图，支持搜索、筛选、对比、安装与卸载。
 
+## 版本与发布
+
+版本号只写在仓库根的 `version.txt` 一处。`Directory.Build.props` 把它读成 `Version`，所以程序集元数据、窗口标题行、`dist\find-font-<version>-win-x64.zip` 的命名、CI 的打包与校验全都来自同一个值。
+
+发一个新版本就是三步：
+
+```bash
+echo 0.3.0-alpha > version.txt                        # 1. 改版本号
+git commit -am "release: 0.3.0-alpha"                 # 2. 提交
+git tag v0.3.0-alpha && git push origin main --tags   # 3. 打新 tag
+```
+
+tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，不一致直接失败，避免「新 tag 顶着旧版本号发出去」。每个版本用独立的新 tag —— 不要删掉旧 tag 再重建：复用同一个 tag 会让 Release 页面一直显示同一个版本号，也让「这次究竟改了什么」无法追溯。
+
 ## 界面
 
 默认 1600×1000（最小 1280×780），三栏：左栏是分类与风格的索引栏（272px，计数随筛选实时变化），中部是样本列表，右栏「档案」在选中字体时出现（380px），未选中时收起，把宽度还给列表。
@@ -48,7 +62,7 @@ Windows 自带的字体查看器只能看文件名，无法一眼看清一个字
 build.cmd          :: 编译
 build.cmd test     :: 跑冒烟测试（扫描真实系统字体并实际渲染一张位图）
 build.cmd run      :: 直接启动
-build.cmd publish  :: 发布到 publish\ 并打包 dist\find-font-0.1.0-alpha-win-x64.zip
+build.cmd publish  :: 发布到 publish\ 并打包 dist\find-font-<version>-win-x64.zip
 ```
 
 `publish\` 里有两个可执行文件：
@@ -104,7 +118,7 @@ build.cmd test
 3. `FontItem.BestName` 三级回退与 `DedupKey` 大小写不敏感
 4. 真实扫描本机注册表（断言字体数 > 0，字段非空）
 5. `EnhanceAsync` 抽样补全，断言字重被回填；旧式 `.fon` 不得误判为异常
-6. `FontMetadataReader.TryRead` 遍历本机全部字体文件，断言 sfnt 字体零失败、平均耗时 < 5 ms/文件，并抽样核对 SimSun / Arial / 微软雅黑的家族名与中文名
+6. `FontMetadataReader.TryRead` 遍历本机全部字体文件，断言 sfnt 直读覆盖率 100%（不退回 `GlyphTypeface` 慢路径），并抽样核对 SimSun / Arial / 微软雅黑的家族名与中文名
 7. `FontRenderCache` 实际出图，断言尺寸 > 0、已 `Freeze`、二次请求命中缓存
 8. `MainViewModel` 真实加载后验证搜索、分类筛选、风格筛选与清空恢复
 9. 1 万条字体的压测：装载、搜索、筛选、清空恢复各自的耗时上限（搜索/筛选 < 500 ms）
@@ -113,8 +127,9 @@ build.cmd test
 12. 动效助手遵循系统设置：`Motion.Evaluate(true/false)` 的返回值与三档时长排序
 13. 窗口材质回退不抛异常：`WindowBackdrop.Apply` 在任意系统版本上都返回合法档位
 14. 尺寸与模板资源：默认画布、最小时宽的断言与模板键的存在性
+15. 版本号来自 `version.txt`：程序集元数据、`AppInfo.DisplayVersion`、视图模型三处一致
 
-当前全部通过（11 项）。
+当前全部通过（15 项）。
 
 ## 使用说明
 

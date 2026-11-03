@@ -16,6 +16,12 @@ public partial class MainViewModel : ObservableObject
 
     private const int SearchDebounceMs = 300;
 
+    /// <summary>界面上显示的版本号，来自 version.txt（经程序集元数据带过来）。</summary>
+    public string AppVersion => Helpers.AppInfo.Version;
+
+    /// <summary>带 v 前缀，直接放进标题下的计数行。</summary>
+    public string AppVersionDisplay => "v" + AppVersion;
+
     /// <summary>
     /// 每次筛选结果落地后触发。视图用它播放入场动画——视图模型不碰任何 UI 类型，
     /// 也不关心订阅者是不是窗口。

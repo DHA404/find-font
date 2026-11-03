@@ -1,6 +1,12 @@
 <Project>
 
+  <!--
+    版本号的唯一来源：仓库根的 version.txt。
+    csproj、打包脚本、Release 都从这一处取，避免 tag 复用时版本号对不上。
+  -->
   <PropertyGroup>
+    <FindFontVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)version.txt').Trim())</FindFontVersion>
+    <Version>$(FindFontVersion)</Version>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>

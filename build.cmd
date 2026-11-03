@@ -43,9 +43,10 @@ rem 2) launcher: .NET Framework 4.8 bootstrapper -> publish\FindFont.exe (double
 dotnet build src\FindFont.Launcher\FindFont.Launcher.csproj -c Release || exit /b 1
 copy /y "src\FindFont.Launcher\bin\Release\net48\FindFont.exe" "publish\FindFont.exe" >nul || exit /b 1
 echo Publish output: %CD%\publish  (entry: FindFont.exe)
-rem 3) portable zip for distribution
+rem 3) portable zip for distribution (version comes from version.txt)
 if not exist "dist" mkdir "dist"
-set ZIPNAME=dist\find-font-0.1.0-alpha-win-x64.zip
+set /p APPVER=<version.txt
+set ZIPNAME=dist\find-font-%APPVER%-win-x64.zip
 if exist "%ZIPNAME%" del /q "%ZIPNAME%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'publish\*' -DestinationPath '%ZIPNAME%' -Force" || exit /b 1
 echo Portable zip : %CD%\%ZIPNAME%

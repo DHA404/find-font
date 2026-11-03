@@ -34,10 +34,49 @@ public sealed class FontScanner
     {
         var started = DateTime.UtcNow;
         var items = new List<FontItem>(512);
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // 同一份字体数据会被登记多次：注册表的 64/32 两个视图各有一份同名项，
+        // 用户字体目录里又躺着一批注册表已登记过的文件。按「家族名 + 样式名」去重
+        // 抓不住这些重复（用户目录那条没有样式名），于是改用文件路径做主键。
+        //
+        // 但路径相同不等于字面相同：.ttc/.otc 一个文件里可能装着多个家族，
+        // 注册表也可能用不同名字登记同一文件的多个字面。所以只有名字一致才合并，
+        // 名字不同就当两个独立条目留下。
+        var byPath = new Dictionary<string, List<FontItem>>(StringComparer.OrdinalIgnoreCase);
 
         int registryEntries = 0;
         int missingFiles = 0;
+
+        void Add(FontItem item)
+        {
+            // 缺失文件的项没有 FullPath，退化成按文件名归组。
+            var key = item.FullPath.Length > 0 ? item.FullPath : "\0missing\0" + item.FileName;
+
+            if (!byPath.TryGetValue(key, out var bucket))
+            {
+                byPath[key] = bucket = new List<FontItem>(1);
+                bucket.Add(item);
+                items.Add(item);
+                return;
+            }
+
+            foreach (var existing in bucket)
+            {
+                if (!string.Equals(existing.FamilyName, item.FamilyName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // 同名字面：只补全信息，不新增行。
+                if (existing.StyleName.Length == 0 && item.StyleName.Length > 0)
+                {
+                    existing.FamilyName = item.FamilyName;
+                    existing.DisplayName = item.DisplayName;
+                    existing.StyleName = item.StyleName;
+                }
+                return;
+            }
+
+            bucket.Add(item);
+            items.Add(item);
+        }
 
         void AddEntry(string registryName, string? fileName, bool isSystem)
         {
@@ -49,7 +88,7 @@ public sealed class FontScanner
             {
                 missingFiles++;
                 var ghost = CreateBrokenItem(registryName, fileName, isSystem, "字体文件缺失");
-                if (seen.Add(ghost.DedupKey)) items.Add(ghost);
+                Add(ghost);
                 return;
             }
 
@@ -68,7 +107,7 @@ public sealed class FontScanner
             item.Language = LanguageInference.Infer(cleanedName, item.FileName);
             item.Category = LanguageInference.ToCategory(item.Language);
 
-            if (seen.Add(item.DedupKey)) items.Add(item);
+            Add(item);
         }
 
         foreach (var hive in new[] { RegistryHive.LocalMachine, RegistryHive.CurrentUser })
@@ -80,6 +119,8 @@ public sealed class FontScanner
         }
 
         // 用户级字体目录里可能还有注册表未登记的字体。
+        // 注意：这里能拿到的只有文件名，不保证和注册表里的家族名一致，
+        // 所以按名字去重合不上——已经被注册表收录的文件直接按路径跳过。
         var userFontDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Microsoft", "Windows", "Fonts");
@@ -87,6 +128,8 @@ public sealed class FontScanner
         {
             foreach (var file in SafeEnumerate(userFontDir, "*.ttf", "*.otf", "*.ttc", "*.otc", "*.woff", "*.woff2"))
             {
+                if (byPath.ContainsKey(file)) continue;
+
                 var name = Path.GetFileNameWithoutExtension(file);
                 var item = new FontItem
                 {
@@ -99,7 +142,7 @@ public sealed class FontScanner
                 };
                 item.Language = LanguageInference.Infer(name);
                 item.Category = LanguageInference.ToCategory(item.Language);
-                if (seen.Add(item.DedupKey)) items.Add(item);
+                Add(item);
             }
         }
 

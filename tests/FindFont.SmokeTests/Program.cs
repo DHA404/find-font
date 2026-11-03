@@ -102,6 +102,14 @@ internal static class Program
         Check(result.Items.Count > 0, "系统应当至少扫描到 1 个字体");
         Check(result.Items.All(i => !string.IsNullOrWhiteSpace(i.FileName)), "每项都应有文件名");
         Check(result.Items.All(i => !string.IsNullOrWhiteSpace(i.DisplayName)), "每项都应有显示名");
+
+        // 同一个字体文件不能在列表里出现两次。注册表的 64/32 视图各有一份同名登记，
+        // 用户字体目录又与注册表指向同一批文件，若按「家族名+样式名」去重会残留重复。
+        var samePath = result.Items
+            .Where(i => i.FullPath.Length > 0)
+            .GroupBy(i => i.FullPath, StringComparer.OrdinalIgnoreCase)
+            .Count(g => g.Count() > 1);
+        Check(samePath == 0, $"同一文件路径不应出现多次，实际 {samePath} 处重复");
     }
 
     private static void TestEnhance()

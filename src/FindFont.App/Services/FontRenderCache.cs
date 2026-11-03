@@ -14,30 +14,52 @@ public sealed record RenderRequest(string FontKey, string? FontFilePath, string 
 /// - 使用 <see cref="Typeface"/> + <see cref="FormattedText"/> + <see cref="RenderTargetBitmap"/> 出图，
 ///   完全绕开 UI 层的 <see cref="FontFamily"/> 绑定；
 /// - 位图 Freeze() 后跨线程共享，UI 只放 Image；
-/// - 内存级 LRU 位图缓存，超出容量自动淘汰；
+/// - 内存级 LRU 位图缓存，同时受条数与字节预算约束（滚动时不会把内存吃穿）；
+/// - 同一键的并发请求合并成一次真实渲染；
+/// - 同一字体已有更新的请求排队时，旧请求直接丢弃，滚动不会排队积压；
 /// - 渲染跑在独立 STA 线程的 Dispatcher 上，UI 线程永不阻塞。
 /// </summary>
 public sealed class FontRenderCache : IDisposable
 {
-    private readonly record struct CacheKey(string FontKey, string Text, double FontSize, int Width, int Height, double Dpi);
+    /// <summary>默认字节预算：96 MB（约等于 400 张 1500×220 位图）。</summary>
+    public const long DefaultByteBudget = 96L * 1024 * 1024;
+
+    private readonly record struct CacheKey(string FontKey, string Text, double FontSize, int Width, int Height, double Dpi)
+    {
+        public long Bytes => (long)Math.Max(1, Width) * Math.Max(1, Height) * 4;
+    }
 
     private readonly int _capacity;
+    private readonly long _byteBudget;
     private readonly Dictionary<CacheKey, LinkedListNode<(CacheKey Key, BitmapSource Bitmap)>> _map = new();
     private readonly LinkedList<(CacheKey Key, BitmapSource Bitmap)> _lru = new();
     private readonly object _sync = new();
+    private long _bytes;
 
     private readonly Dictionary<string, GlyphTypeface> _glyphs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Typeface?> _typefaces = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, bool> _invalidGlyphs = new(StringComparer.OrdinalIgnoreCase);
+
+    // 同一键的并发请求合并：只投递一次渲染，其余 await 同一个 Task。
+    private readonly Dictionary<CacheKey, TaskCompletionSource<BitmapSource>> _inflight = new();
+
+    // 陈旧的同一字体请求丢弃：记录每个字体当前最新的请求序号。
+    private readonly Dictionary<string, long> _latestSeqByFont = new(StringComparer.OrdinalIgnoreCase);
+    private long _seq;
+
+    private readonly Dictionary<(int Width, int Height), BitmapSource> _placeholders = new();
 
     private readonly Thread _renderThread;
     private readonly Dispatcher _renderDispatcher;
     private readonly ManualResetEventSlim _ready = new(false);
 
+    private long _renderedFrames;
     private bool _disposed;
 
-    public FontRenderCache(int capacity = 600)
+    public FontRenderCache(int capacity = 800, long byteBudgetBytes = DefaultByteBudget)
     {
         _capacity = Math.Max(32, capacity);
+        _byteBudget = Math.Max(4L * 1024 * 1024, byteBudgetBytes);
 
         Dispatcher? readyDispatcher = null;
         var thread = new Thread(() =>
@@ -66,6 +88,18 @@ public sealed class FontRenderCache : IDisposable
         get { lock (_sync) return _map.Count; }
     }
 
+    /// <summary>当前缓存位图占用的近似字节数。</summary>
+    public long Bytes
+    {
+        get { lock (_sync) return _bytes; }
+    }
+
+    /// <summary>累计真正执行的渲染次数（缓存命中与合并都不计数），供测试与诊断。</summary>
+    public long RenderedFrames => Interlocked.Read(ref _renderedFrames);
+
+    /// <summary>字节预算上限。</summary>
+    public long ByteBudget => _byteBudget;
+
     /// <summary>同步取缓存；没有则返回 null。</summary>
     public BitmapSource? TryGetFromCache(RenderRequest request)
     {
@@ -85,35 +119,67 @@ public sealed class FontRenderCache : IDisposable
     /// </summary>
     public Task<BitmapSource> RenderAsync(RenderRequest request, CancellationToken token = default)
     {
+        if (_disposed) return Task.FromResult(Placeholder(request));
+
         var cached = TryGetFromCache(request);
         if (cached is not null) return Task.FromResult(cached);
 
-        var tcs = new TaskCompletionSource<BitmapSource>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (_disposed)
+        var key = ToKey(request);
+
+        TaskCompletionSource<BitmapSource> tcs;
+        long seq;
+        lock (_sync)
         {
-            tcs.TrySetResult(Placeholder(request));
-            return tcs.Task;
+            // 同键在途：直接复用，避免同一张图被重复渲染。
+            if (_inflight.TryGetValue(key, out var running))
+            {
+                return running.Task;
+            }
+
+            tcs = new TaskCompletionSource<BitmapSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _inflight[key] = tcs;
+            seq = ++_seq;
+            _latestSeqByFont[request.FontKey] = seq;
         }
 
-        token.Register(() => tcs.TrySetCanceled(token));
+        if (token.CanBeCanceled)
+        {
+            token.Register(() =>
+            {
+                lock (_sync) _inflight.Remove(key);
+                tcs.TrySetCanceled(token);
+            });
+        }
 
         _renderDispatcher.BeginInvoke(new Action(() =>
         {
             try
             {
+                // 同字体已有更新的请求在排队：这张图滚出视野了，别浪费渲染时间。
+                lock (_sync)
+                {
+                    if (_latestSeqByFont.TryGetValue(request.FontKey, out var latest) && latest != seq)
+                    {
+                        _inflight.Remove(key);
+                        tcs.TrySetCanceled();
+                        return;
+                    }
+                }
+
                 if (token.IsCancellationRequested)
                 {
+                    lock (_sync) _inflight.Remove(key);
                     tcs.TrySetCanceled(token);
                     return;
                 }
 
-                var key = ToKey(request);
                 lock (_sync)
                 {
                     if (_map.TryGetValue(key, out var node))
                     {
                         _lru.Remove(node);
                         _lru.AddFirst(node);
+                        _inflight.Remove(key);
                         tcs.TrySetResult(node.Value.Bitmap);
                         return;
                     }
@@ -132,11 +198,15 @@ public sealed class FontRenderCache : IDisposable
                 }
 
                 bitmap.Freeze();
+                Interlocked.Increment(ref _renderedFrames);
                 Store(key, bitmap);
+
+                lock (_sync) _inflight.Remove(key);
                 tcs.TrySetResult(bitmap);
             }
             catch (Exception ex)
             {
+                lock (_sync) _inflight.Remove(key);
                 tcs.TrySetException(ex);
             }
         }), DispatcherPriority.Background);
@@ -146,10 +216,7 @@ public sealed class FontRenderCache : IDisposable
 
     private BitmapSource RenderCore(RenderRequest request)
     {
-        var glyph = ResolveGlyphTypeface(request.FontFilePath);
-        var typeface = glyph is not null && glyph.FamilyNames.Count > 0
-            ? new Typeface(new FontFamily(glyph.FamilyNames.Values.First()), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)
-            : new Typeface("Segoe UI");
+        var typeface = ResolveTypeface(request.FontFilePath);
 
         var dpi = request.Dpi <= 0 ? 96 : request.Dpi;
         var scale = dpi / 96.0;
@@ -171,7 +238,7 @@ public sealed class FontRenderCache : IDisposable
             LineHeight = Math.Max(request.FontSize * 1.15, request.FontSize),
         };
 
-        // 垂直居中：展开态有 150px 高，贴着顶画会让字形浮在上半边。
+        // 垂直居中：展开态有 220px 高，贴着顶画会让字形浮在上半边。
         var top = Math.Max(0, (request.PixelHeight - formatted.Height) / 2);
 
         var visual = new DrawingVisual();
@@ -189,6 +256,50 @@ public sealed class FontRenderCache : IDisposable
             PixelFormats.Pbgra32);
         rtb.Render(visual);
         return rtb;
+    }
+
+    /// <summary>
+    /// 取 Typeface。首次为某文件构造时优先用「文件 URI + #家族名」，
+    /// 避开按家族名二次查找系统字体族的开销，也避免同类名撞车。
+    /// </summary>
+    private Typeface ResolveTypeface(string? path)
+    {
+        var fallback = new Typeface("Segoe UI");
+        if (string.IsNullOrWhiteSpace(path)) return fallback;
+
+        lock (_sync)
+        {
+            if (_typefaces.TryGetValue(path, out var cached)) return cached ?? fallback;
+        }
+
+        var glyph = ResolveGlyphTypeface(path);
+        Typeface? built = null;
+
+        if (glyph is not null && glyph.FamilyNames.Count > 0)
+        {
+            var family = glyph.FamilyNames.Values.First();
+            try
+            {
+                built = new Typeface(
+                    new FontFamily(new Uri(Path.GetFullPath(path)), "./#" + family),
+                    FontStyles.Normal,
+                    FontWeights.Normal,
+                    FontStretches.Normal);
+                if (!built.TryGetGlyphTypeface(out _)) built = null;
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or IOException)
+            {
+                built = null;
+            }
+
+            built ??= new Typeface(new FontFamily(family), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        }
+
+        lock (_sync)
+        {
+            _typefaces[path] = built;
+            return built ?? fallback;
+        }
     }
 
     private GlyphTypeface? ResolveGlyphTypeface(string? path)
@@ -235,23 +346,36 @@ public sealed class FontRenderCache : IDisposable
             {
                 _lru.Remove(existing);
                 _map.Remove(key);
+                _bytes -= existing.Value.Key.Bytes;
             }
 
             var node = _lru.AddFirst((key, bitmap));
             _map[key] = node;
+            _bytes += key.Bytes;
 
-            while (_map.Count > _capacity && _lru.Last is { } last)
+            // 双约束：条数上限 + 字节预算。永远保留刚插入的那一张。
+            while ((_map.Count > _capacity || _bytes > _byteBudget) && _lru.Last is { } last && _map.Count > 1)
             {
                 _lru.RemoveLast();
                 _map.Remove(last.Value.Key);
+                _bytes -= last.Value.Key.Bytes;
             }
+
+            if (_bytes < 0) _bytes = 0;
         }
     }
 
-    private static BitmapSource Placeholder(RenderRequest request)
+    private BitmapSource Placeholder(RenderRequest request)
     {
         var width = Math.Max(1, request.PixelWidth);
         var height = Math.Max(1, request.PixelHeight);
+        var size = Math.Min(18, request.FontSize);
+
+        lock (_sync)
+        {
+            if (_placeholders.TryGetValue((width, height), out var cached) && Math.Abs(size - 18) < 0.01)
+                return cached;
+        }
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
@@ -262,7 +386,7 @@ public sealed class FontRenderCache : IDisposable
                 System.Globalization.CultureInfo.CurrentUICulture,
                 FlowDirection.LeftToRight,
                 new Typeface("Segoe UI"),
-                Math.Min(18, request.FontSize),
+                size,
                 Brushes.Gray,
                 null,
                 TextFormattingMode.Ideal,
@@ -273,6 +397,12 @@ public sealed class FontRenderCache : IDisposable
         var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         rtb.Render(visual);
         rtb.Freeze();
+
+        if (Math.Abs(size - 18) < 0.01)
+        {
+            lock (_sync) _placeholders[(width, height)] = rtb;
+        }
+
         return rtb;
     }
 
@@ -282,6 +412,7 @@ public sealed class FontRenderCache : IDisposable
         {
             _map.Clear();
             _lru.Clear();
+            _bytes = 0;
         }
     }
 
@@ -289,6 +420,15 @@ public sealed class FontRenderCache : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        TaskCompletionSource<BitmapSource>[] pending;
+        lock (_sync)
+        {
+            pending = _inflight.Values.ToArray();
+            _inflight.Clear();
+        }
+
+        foreach (var tcs in pending) tcs.TrySetCanceled();
 
         try
         {
@@ -303,8 +443,11 @@ public sealed class FontRenderCache : IDisposable
         {
             _map.Clear();
             _lru.Clear();
+            _bytes = 0;
             _glyphs.Clear();
+            _typefaces.Clear();
             _invalidGlyphs.Clear();
+            _placeholders.Clear();
         }
     }
 }

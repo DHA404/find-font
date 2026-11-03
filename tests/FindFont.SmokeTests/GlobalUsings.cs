@@ -5,3 +5,7 @@ global using System.Linq;
 global using System.Threading;
 global using System.Threading.Tasks;
 global using System.Windows;
+global using FindFont.App;
+global using FindFont.App.Models;
+global using FindFont.App.Services;
+global using FindFont.App.ViewModels;

@@ -45,6 +45,9 @@ internal static class Program
         // WPF 一个进程只能有一个 Application；先建好，窗口构造时才能解析主题资源。
         _app = new FindFont.App.App();
         _app.InitializeComponent();
+        // 测试里会反复开关窗口；默认的 OnLastWindowClose 会在最后一个窗口关闭时
+        // 触发 Application.OnExit 并释放全局渲染缓存，后面的用例就全拿不到位图了。
+        _app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         Run("LanguageInference 关键字推断", TestLanguageInference);
         Run("FontMetadataReader CJK 判定", TestContainsCjk);
@@ -61,6 +64,11 @@ internal static class Program
         Run("窗口材质回退不抛异常", TestBackdropFallback);
         Run("尺寸与模板资源", TestLayoutAndTemplates);
         Run("版本号来自 version.txt", TestVersionWiring);
+        Run("位图缓存受字节预算约束", TestCacheByteBudget);
+        Run("同键并发请求只渲染一次", TestCacheDedupesInFlight);
+        Run("未选中的行不渲染大图", TestNoLargePreviewWhenIdle);
+        Run("RangeObservableCollection 只发一次 Reset", TestRangeCollection);
+        Run("搜索快路径与原多字段匹配等价", TestSearchParity);
 
         Console.WriteLine(new string('-', 60));
         Console.WriteLine($"通过 {_passed} 项，失败 {_failed} 项");
@@ -490,4 +498,160 @@ internal static class Program
         main.Close();
         compare.Close();
     }
+
+    /// <summary>缓存不能只靠条数兜底：一张 1500x220 的图就是 1.3 MB，条数 × 体积会吃穿内存。</summary>
+    private static void TestCacheByteBudget()
+    {
+        using var cache = new FontRenderCache(capacity: 500, byteBudgetBytes: 32L * 1024 * 1024);
+        Check(cache.ByteBudget <= 32L * 1024 * 1024, "字节预算应被采纳");
+
+        var text = new string('W', 40);
+        var tasks = new List<Task>();
+        for (var i = 0; i < 40; i++)
+        {
+            var request = new RenderRequest(
+                FontKey: "budget-" + i,
+                FontFilePath: null,
+                Text: text,
+                FontSize: 40,
+                PixelWidth: 1500,
+                PixelHeight: 220);
+            tasks.Add(cache.RenderAsync(request));
+        }
+
+        Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(30));
+
+        Check(cache.Bytes <= cache.ByteBudget + 1500 * 220 * 4,
+            $"缓存字节数应受预算约束，实际 {cache.Bytes / 1024} KB");
+        Check(cache.Count < 40, $"40 张 1500x220 位图不应全部留住，实际留了 {cache.Count} 张");
+        Check(cache.Count >= 1, "至少应保留最近一张");
+    }
+
+    /// <summary>滚动时同一行会被反复求值：同一 CacheKey 的并发请求必须合并成一次真实渲染。</summary>
+    private static void TestCacheDedupesInFlight()
+    {
+        using var cache = new FontRenderCache();
+        var request = new RenderRequest(
+            FontKey: "dedupe",
+            FontFilePath: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", "arial.ttf"),
+            Text: "Dedupe 0123",
+            FontSize: 32,
+            PixelWidth: 640,
+            PixelHeight: 92);
+
+        var before = cache.RenderedFrames;
+        var tasks = new Task<System.Windows.Media.Imaging.BitmapSource>[16];
+        for (var i = 0; i < tasks.Length; i++) tasks[i] = cache.RenderAsync(request);
+        Task.WaitAll(tasks, TimeSpan.FromSeconds(30));
+
+        var first = tasks[0].Result;
+        foreach (var task in tasks)
+        {
+            Check(ReferenceEquals(task.Result, first), "同一键的所有请求应拿到同一张位图");
+        }
+
+        var rendered = cache.RenderedFrames - before;
+        Check(rendered == 1, $"16 个并发同键请求只应渲染 1 次，实际 {rendered} 次");
+        Check(first.IsFrozen, "返回的位图必须已 Freeze 才能跨线程共享");
+    }
+
+    /// <summary>滚动经过的行只该渲染小图；大图必须等到真正被选中才渲染。</summary>
+    private static void TestNoLargePreviewWhenIdle()
+    {
+        var vm = new MainViewModel();
+        var arial = new FontItem
+        {
+            FamilyName = "Arial",
+            DisplayName = "Arial",
+            FileName = "arial.ttf",
+            FullPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", "arial.ttf"),
+            StyleName = "Regular",
+        };
+        var simsun = new FontItem
+        {
+            FamilyName = "SimSun",
+            DisplayName = "SimSun",
+            FileName = "simsun.ttc",
+            FullPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", "simsun.ttc"),
+            StyleName = "Regular",
+        };
+
+        vm.SeedForStressTest(new[] { arial, simsun });
+        vm.ApplyFilter();
+
+        // 渲染小图（模拟列表行被实现）
+        var small = new RenderRequest(arial.FullPath, arial.FullPath, vm.PreviewText, vm.PreviewFontSize, 1120, 92);
+        var smallBitmap = AppServices.RenderCache.RenderAsync(small).GetAwaiter().GetResult();
+        arial.PreviewBitmap = smallBitmap;
+        simsun.PreviewBitmap = smallBitmap;
+
+        Check(arial.PreviewBitmapLarge is null, "未选中的行不应有大样本位图");
+        Check(simsun.PreviewBitmapLarge is null, "未选中的行不应有大样本位图");
+
+        vm.UpdateSelection(new[] { arial });
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (arial.PreviewBitmapLarge is null && DateTime.UtcNow < deadline)
+        {
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                () => { }, System.Windows.Threading.DispatcherPriority.Background);
+            Thread.Sleep(20);
+        }
+
+        Check(arial.PreviewBitmapLarge is not null, "选中之后应渲染出大样本");
+        Check(simsun.PreviewBitmapLarge is null, "只该给被选中的那一行渲染大样本");
+
+        vm.UpdateSelection(Array.Empty<FontItem>());
+        Check(arial.PreviewBitmapLarge is null, "取消选中后应释放大样本位图");
+    }
+
+    /// <summary>逐条 Add 一千次会让 ListBox 重建视图一千次。</summary>
+    private static void TestRangeCollection()
+    {
+        var collection = new FindFont.App.Collections.RangeObservableCollection<int>();
+        var events = 0;
+        System.Collections.Specialized.NotifyCollectionChangedAction? lastAction = null;
+        collection.CollectionChanged += (_, e) =>
+        {
+            events++;
+            lastAction = e.Action;
+        };
+
+        var items = Enumerable.Range(0, 1000).ToArray();
+        collection.ReplaceAll(items);
+
+        Check(events == 1, $"ReplaceAll 只应触发一次集合通知，实际 {events} 次");
+        Check(lastAction == System.Collections.Specialized.NotifyCollectionChangedAction.Reset, "通知应是 Reset");
+        Check(collection.Count == 1000, "内容应全部替换进去");
+
+        collection.ReplaceAll(Array.Empty<int>());
+        Check(collection.Count == 0, "ReplaceAll 空集合应清空");
+    }
+
+    /// <summary>搜索快路径（单次 Contains 打穿拼串）必须与原来的六字段逐项匹配完全等价。</summary>
+    private static void TestSearchParity()
+    {
+        var scanner = new FontScanner();
+        var items = scanner.Scan().Items.Take(200).ToList();
+        Check(items.Count > 0, "应能扫到字体用于比较");
+
+        var queries = new[] { "sans", "宋", "ARIAL", "regular", "noto", "黑" };
+
+        foreach (var query in queries)
+        {
+            var fast = items.Where(i => FastMatch(i, query)).Count();
+            var legacy = items.Where(i => LegacyMatch(i, query)).Count();
+            Check(fast == legacy, $"“{query}”的匹配数应一致：快路径 {fast}，原逻辑 {legacy}");
+        }
+    }
+
+    private static bool FastMatch(FontItem item, string query) =>
+        item.SearchHaystack.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private static bool LegacyMatch(FontItem item, string query) =>
+        item.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+        || item.LocalizedName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+        || item.ChineseName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+        || item.FamilyName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+        || item.FileName.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || item.StyleName.Contains(query, StringComparison.CurrentCultureIgnoreCase);
 }

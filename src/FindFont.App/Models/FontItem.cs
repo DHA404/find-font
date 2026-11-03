@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FindFont.App.Services;
 
 namespace FindFont.App.Models;
 
@@ -48,7 +50,7 @@ public partial class FontItem : ObservableObject
     [ObservableProperty] private FontCategory _category = FontCategory.All;
 
     // 渲染缓存状态：BitmapSource 由 FontRenderCache 填入，UI 用 Image 展示。
-    // 列表行用 PreviewBitmap（60px 高），选中行展开用 PreviewBitmapLarge（150px 高）。
+    // 列表行用 PreviewBitmap（92px 高），选中行展开用 PreviewBitmapLarge（220px 高）。
     [ObservableProperty] private object? _previewBitmap;
     [ObservableProperty] private object? _previewBitmapLarge;
     [ObservableProperty] private bool _isPreviewPending;
@@ -58,6 +60,12 @@ public partial class FontItem : ObservableObject
     [ObservableProperty] private bool _isSystemFont = true;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
+    /// <summary>
+    /// 搜索用的小写拼串（家族名 + 显示名 + 本地化名 + 中文名 + 文件名 + 样式名）。
+    /// 每次名称变化都重建一次，让一次滚动/搜索只做一次 Contains。
+    /// </summary>
+    public string SearchHaystack { get; private set; } = string.Empty;
+
     /// <summary>字体在所有候选中用于显示的最终名称（本地化名优先）。</summary>
     public string BestName =>
         !string.IsNullOrWhiteSpace(ChineseName) ? ChineseName! :
@@ -66,9 +74,69 @@ public partial class FontItem : ObservableObject
 
     public bool IsChinese => Language is FontLanguage.Chinese or FontLanguage.Japanese or FontLanguage.Korean;
 
-    partial void OnLocalizedNameChanged(string value) => OnPropertyChanged(nameof(BestName));
-    partial void OnChineseNameChanged(string value) => OnPropertyChanged(nameof(BestName));
-    partial void OnDisplayNameChanged(string value) => OnPropertyChanged(nameof(BestName));
+    partial void OnLocalizedNameChanged(string value) => OnNameChanged();
+    partial void OnChineseNameChanged(string value) => OnNameChanged();
+    partial void OnDisplayNameChanged(string value) => OnNameChanged();
+    partial void OnFamilyNameChanged(string value) => OnNameChanged();
+    partial void OnFileNameChanged(string value) => OnNameChanged();
+    partial void OnStyleNameChanged(string value) => OnNameChanged();
+
+    private void OnNameChanged()
+    {
+        OnPropertyChanged(nameof(BestName));
+        RebuildHaystack();
+    }
+
+    private void RebuildHaystack()
+    {
+        SearchHaystack = string.Concat(
+            FamilyName, "\u0001",
+            DisplayName, "\u0001",
+            LocalizedName, "\u0001",
+            ChineseName, "\u0001",
+            FileName, "\u0001",
+            StyleName).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// 为展开态请求大样本位图。只有真正被选中的行才调用 —— 滚动时绝不触发大图渲染。
+    /// </summary>
+    public void RequestLargePreview(string text, double fontSize, int width, int height)
+    {
+        if (string.IsNullOrEmpty(FullPath)) return;
+
+        var request = new RenderRequest(
+            FontKey: FullPath,
+            FontFilePath: FullPath,
+            Text: string.IsNullOrEmpty(text) ? " " : text,
+            FontSize: fontSize <= 0 ? 28 : fontSize,
+            PixelWidth: width,
+            PixelHeight: height);
+
+        var cached = AppServices.RenderCache.TryGetFromCache(request);
+        if (cached is not null)
+        {
+            PreviewBitmapLarge = cached;
+            return;
+        }
+
+        _ = ApplyLargeAsync(request);
+    }
+
+    private async Task ApplyLargeAsync(RenderRequest request)
+    {
+                try
+        {
+            var bitmap = await AppServices.RenderCache.RenderAsync(request).ConfigureAwait(true);
+            PreviewBitmapLarge = bitmap;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
+        {
+        }
+    }
+
+    /// <summary>丢弃大样本位图，释放内存（取消选中时调用）。</summary>
+    public void ReleaseLargePreview() => PreviewBitmapLarge = null;
 
     public override string ToString() => $"{FamilyName} [{StyleName}]";
 

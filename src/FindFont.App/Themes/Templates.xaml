@@ -49,7 +49,7 @@
 
                 <!-- 收起态小样本：选中时淡出 -->
                 <Image x:Name="SmallSample" Stretch="None" HorizontalAlignment="Left"
-                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality">
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="LowQuality">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Opacity" Value="1" />
@@ -78,7 +78,7 @@
                         </Style>
                     </Image.Style>
                     <Image.Source>
-                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1500x92">
+                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1120x92">
                             <Binding />
                             <Binding Path="DataContext.PreviewText"
                                      RelativeSource="{RelativeSource AncestorType=ListBox}" />
@@ -89,9 +89,11 @@
                     </Image.Source>
                 </Image>
 
-                <!-- 展开态大样本：默认透明，选中时淡入 -->
+                <!-- 展开态大样本：默认透明，选中时淡入。直接绑 PreviewBitmapLarge（不经过转换器），
+                     只有被选中的行才由 MainViewModel 主动请求渲染，滚动时零开销。 -->
                 <Image x:Name="LargeSample" Stretch="None" HorizontalAlignment="Left"
-                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality">
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="LowQuality"
+                       Source="{Binding PreviewBitmapLarge}">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Opacity" Value="0" />
@@ -119,16 +121,6 @@
                             </Style.Triggers>
                         </Style>
                     </Image.Style>
-                    <Image.Source>
-                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1500x220">
-                            <Binding />
-                            <Binding Path="DataContext.PreviewText"
-                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
-                            <Binding Path="DataContext.PreviewFontSize"
-                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
-                            <Binding Path="PreviewBitmapLarge" />
-                        </MultiBinding>
-                    </Image.Source>
                 </Image>
 
                 <!-- 首次渲染占位：只在两张图都没出图时可见 -->

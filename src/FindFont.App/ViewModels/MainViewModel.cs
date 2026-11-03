@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using FindFont.App.Collections;
 using FindFont.App.Models;
 using FindFont.App.Services;
 
@@ -11,10 +12,15 @@ namespace FindFont.App.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly List<FontItem> _allFonts = new(1024);
+    private readonly List<FontItem> _lastLargeSelected = new(4);
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _enhanceCts;
 
     private const int SearchDebounceMs = 300;
+
+    /// <summary>展开态大样本的渲染尺寸（像素）。只有被选中的行才按这个尺寸渲染。</summary>
+    public const int LargePreviewWidth = 1120;
+    public const int LargePreviewHeight = 220;
 
     /// <summary>界面上显示的版本号，来自 version.txt（经程序集元数据带过来）。</summary>
     public string AppVersion => Helpers.AppInfo.Version;
@@ -28,7 +34,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public event EventHandler? FilterApplied;
 
-    public ObservableCollection<FontItem> VisibleFonts { get; } = new();
+    public RangeObservableCollection<FontItem> VisibleFonts { get; } = new();
 
     public ObservableCollection<FontItem> SelectedFonts { get; } = new();
 
@@ -235,24 +241,37 @@ public partial class MainViewModel : ObservableObject
     partial void OnPreviewTextChanged(string value)
     {
         AppServices.PreviewText = value;
-        AppServices.RenderCache.Clear();
         RefreshPreviewBitmaps();
     }
 
-    partial void OnPreviewFontSizeChanged(double value)
-    {
-        AppServices.RenderCache.Clear();
-        RefreshPreviewBitmaps();
-    }
+    partial void OnPreviewFontSizeChanged(double value) => RefreshPreviewBitmaps();
 
+    /// <summary>
+    /// 预览文字或字号变化：只把已实现行的位图槽位清零，让绑定重新触发渲染。
+    /// 刻意不清空位图缓存 —— 缓存键本来就把文本与字号算进去了，旧图会被 LRU 自然淘汰；
+    /// 在这里 Clear() 会让每次打字都把上千个字体重新渲染一遍。
+    /// </summary>
     private void RefreshPreviewBitmaps()
     {
-        foreach (var item in VisibleFonts)
+        foreach (var item in _allFonts)
         {
+            if (item.PreviewBitmap is null && item.PreviewBitmapLarge is null) continue;
             item.PreviewBitmap = null;
             item.PreviewBitmapLarge = null;
             item.IsPreviewPending = false;
         }
+    }
+
+    private void RequestLargePreviews(IReadOnlyList<FontItem> items)
+    {
+        foreach (var item in items)
+            item.RequestLargePreview(PreviewText, PreviewFontSize, LargePreviewWidth, LargePreviewHeight);
+    }
+
+    private void ReleaseLargePreviews()
+    {
+        foreach (var item in _lastLargeSelected) item.ReleaseLargePreview();
+        _lastLargeSelected.Clear();
     }
 
     private void DebounceSearch()
@@ -322,23 +341,38 @@ public partial class MainViewModel : ObservableObject
         var query = SearchText?.Trim();
         if (string.IsNullOrEmpty(query)) return true;
 
-        return item.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || item.LocalizedName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || item.ChineseName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || item.FamilyName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || item.FileName.Contains(query, StringComparison.OrdinalIgnoreCase)
-               || item.StyleName.Contains(query, StringComparison.CurrentCultureIgnoreCase);
+        // 一次 Contains 打穿六个字段的预先拼好的串（FontItem 在名称变化时重建）。
+        return item.SearchHaystack.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
     internal void ApplyFilter()
     {
-        var matches = _allFonts.Where(Matches).ToList();
+        // 一次遍历同时产出结果集与左栏分类计数，避免对全表扫两遍。
+        var matches = new List<FontItem>(_allFonts.Count);
+        var counts = new int[4];
 
-        // 批量替换，避免逐条 Add 触发上千次集合变更。
-        VisibleFonts.Clear();
-        foreach (var item in matches) VisibleFonts.Add(item);
+        foreach (var item in _allFonts)
+        {
+            if (!MatchesExceptCategory(item))
+                continue;
 
-        RebuildFacets();
+            counts[Math.Clamp((int)item.Category, 0, 3)]++;
+
+            var category = SelectedCategoryIndex switch
+            {
+                1 => FontCategory.Chinese,
+                2 => FontCategory.Latin,
+                3 => FontCategory.Other,
+                _ => FontCategory.All,
+            };
+            if (category == FontCategory.All || item.Category == category)
+                matches.Add(item);
+        }
+
+        // 一次 Reset 而不是上千次 Add。
+        VisibleFonts.ReplaceAll(matches);
+
+        RebuildFacets(counts);
 
         StatusText = string.IsNullOrWhiteSpace(SearchText)
             ? $"共 {_allFonts.Count} 个字体，当前显示 {matches.Count} 个"
@@ -357,15 +391,8 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// 重建左栏索引计数。计数用「除分类以外的其余条件」，这样点进去的数量与结果完全一致。
     /// </summary>
-    private void RebuildFacets()
+    private void RebuildFacets(int[] counts)
     {
-        var counts = new int[4];
-        foreach (var item in _allFonts)
-        {
-            if (!MatchesExceptCategory(item)) continue;
-            counts[Math.Clamp((int)item.Category, 0, 3)]++;
-        }
-
         var total = counts[0] + counts[1] + counts[2] + counts[3];
 
         // 原地更新计数，绝不 Clear：清空集合会让绑定到 CategoryFacets 的 ListBox
@@ -427,6 +454,11 @@ public partial class MainViewModel : ObservableObject
         if (selected.Count == 1) SelectFont(selected[0]);
         else if (selected.Count > 1) FocusedFont = selected[0];
         else FocusedFont = null;
+
+        // 只有被选中的那几行才渲染大样本；上一批被取消选中的行立刻释放。
+        ReleaseLargePreviews();
+        _lastLargeSelected.AddRange(selected);
+        RequestLargePreviews(_lastLargeSelected);
 
         SelectionChanged();
     }

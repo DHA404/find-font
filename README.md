@@ -47,9 +47,9 @@ tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，�
 | 问题 | 方案 | 代码位置 |
 | --- | --- | --- |
 | 绑定 `FontFamily` 会让 WPF 加载并常驻上千套字形，内存暴涨 | XAML 里**禁止**出现 `FontFamily` 绑定；改用 `FormattedText` + `RenderTargetBitmap` 在独立 STA 线程离屏出图，缓存为冻结的 `BitmapSource` | `Services/FontRenderCache.cs`、`Converters/FontToImageConverter.cs` |
-| 上万个字体逐一解析会卡住界面 | 先同步读注册表立即出列表，再后台异步补全本地化名；补名走直读 sfnt 表，约 0.31 ms/文件 | `Services/FontScanner.cs`、`Helpers/FontMetadataReader.cs` |
-| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling`，图片走 LRU 位图缓存 | `Views/MainWindow.xaml` |
-| 输入每个字符都过滤一次会卡顿 | 300 ms 防抖，`CancellationToken` 取消未完成的一轮 | `ViewModels/MainViewModel.cs` |
+| 上万个字体逐一解析会卡住界面 | 先同步读注册表立即出列表，再后台异步补全本地化名；补名走直读 sfnt 表，约 0.44 ms/文件 | `Services/FontScanner.cs`、`Helpers/FontMetadataReader.cs` |
+| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling` + `CacheLength=1,1`；只有被选中的行才请求大样本，滚动过的小样本按 96 MB 字节预算做 LRU 淘汰 | `Views/MainWindow.xaml` |
+| 输入每个字符都过滤一次会卡顿 | 300 ms 防抖 + 一次性扫描同时产出结果与计数（`ReplaceAll` 只发一次 Reset）+ 预拼小写 `SearchHaystack` | `ViewModels/MainViewModel.cs` |
 | 安装/卸载字体需要管理员权限，但主程序不该整体提权 | 主进程保持普通权限，`Verb=runas` 拉起同一个 exe 的微进程只做文件与注册表操作 | `Services/ElevationHost.cs` |
 | 注册表里指向不存在文件的条目会让扫描崩溃 | 缺失文件生成占位项（标红、可一键清理），解析失败静默捕获 | `Services/FontScanner.cs` |
 | 用户没装 .NET 8 时双击 exe 毫无反应 | 入口是 .NET Framework 4.8 引导器（Win10 1803+ 自带），先检测桌面运行时，缺了就弹框并给出下载链接 | `src/FindFont.Launcher/Program.cs` |
@@ -128,14 +128,19 @@ build.cmd test
 13. 窗口材质回退不抛异常：`WindowBackdrop.Apply` 在任意系统版本上都返回合法档位
 14. 尺寸与模板资源：默认画布、最小时宽的断言与模板键的存在性
 15. 版本号来自 `version.txt`：程序集元数据、`AppInfo.DisplayVersion`、视图模型三处一致
+16. 位图缓存受字节预算约束：塞入超预算的大图后总量回落到预算内
+17. 同键并发请求只渲染一次：10 个并发请求共用同一张图
+18. 未选中的行不渲染大图：构造样本行时不触发 220px 大样本渲染，选中后才出现
+19. `RangeObservableCollection` 只发一次 Reset：整批替换不产生逐条通知
+20. 搜索快路径与原多字段匹配等价：200 个真实字体 × 6 组查询串逐一比对
 
-当前全部通过（15 项）。
+当前全部通过（20 项）。
 
 ## 使用说明
 
 - **搜索**：输入任意语言、任意大小写，匹配显示名 / 本地化名 / 中文名 / 家族名 / 文件名 / 样式名。
 - **筛选**：左栏「分类」列出全部 / 中文 / 西文 / 其他及各自数量；「风格」是四个方块开关（全部 / 常规 / 粗体 / 斜体，互斥）；「只看失效登记」把范围收窄到注册表里指向已删除文件的条目。
-- **看细节**：单击任意一行，该行展开成 150px 的大样本，右侧「档案」面板列出家族、本地化名、样式、字重、文件、路径、语言与状态。
+- **看细节**：单击任意一行，该行展开成 220px 的大样本，右侧「档案」面板列出家族、本地化名、样式、字重、文件、路径、语言与状态。
 - **对比选中**：按住 Ctrl 选 1–3 个字体后点「对比选中」，或直接双击某一行。对比窗口里改文字会立刻重渲染所有栏位。
 - **从文件安装**：选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃操作，不会留下半成品。
 - **卸载字体**：对选中项执行，同样要 UAC。
@@ -148,10 +153,14 @@ build.cmd test
 
 | 场景 | 耗时 |
 | --- | --- |
-| 注册表扫描出列表 | 约 500 ms |
-| 全量补全文件名（直读 sfnt） | 约 480 ms（0.36 ms/文件） |
-| 1 万条字体的搜索 / 筛选 | 175 ms / 110 ms |
-| 内存占用（1333 个字体、可视区渲染完） | 约 160 MB |
+| 注册表扫描出列表 | 约 640 ms |
+| 全量补全文件名（直读 sfnt） | 约 580 ms（0.44 ms/文件） |
+| 1 万条字体的搜索 / 筛选 / 清空恢复 | 各约 1 ms |
+| 单个样本行首帧渲染（1120×92） | 约 5 ms |
+| 滚动时新增一屏的渲染量 | 只有可视区内的行，且只渲染小样本 |
+| 内存占用（1333 个字体、可视区渲染完） | 约 160 MB，位图缓存上限 96 MB |
+
+滚动性能的关键是「只有被选中的行才渲染大样本」：早期版本里每个行模板都会在实例化时对 `LargeSample` 求值，滚过一行就多渲染一张 1500×220 的大图。现在大样本改由视图模型的 `RequestLargePreviews` 按选中集合主动请求，行模板只绑 `PreviewBitmapLarge` 属性。
 
 ## 已知限制
 

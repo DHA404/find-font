@@ -75,9 +75,18 @@ public partial class MainWindow : Window
     {
         _entrancePending = false;
 
+        // 只遍历已实现的容器：全表 1333 次 ContainerFromIndex 会在虚拟化下白跑一遍，
+        // 连续若干次取不到就说明已经走到未实现区域，直接停下。
+        var misses = 0;
         for (var i = 0; i < FontList.Items.Count; i++)
         {
-            if (FontList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem container) continue;
+            if (FontList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem container)
+            {
+                if (++misses > 4) break;
+                continue;
+            }
+
+            misses = 0;
             if (container.Tag is true) continue;
 
             container.Tag = true;

@@ -44,3 +44,19 @@ public sealed class NullToVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>null / 空字符串 → Collapsed；有值 → Visible。与 <see cref="StringToVisibilityConverter"/> 对称。</summary>
+public sealed class InverseStringToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object parameter, CultureInfo culture) =>
+        value switch
+        {
+            null => Visibility.Collapsed,
+            string s when string.IsNullOrWhiteSpace(s) => Visibility.Collapsed,
+            bool b => b ? Visibility.Visible : Visibility.Collapsed,
+            _ => Visibility.Visible,
+        };
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

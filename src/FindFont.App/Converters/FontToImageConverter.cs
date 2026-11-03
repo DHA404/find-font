@@ -58,6 +58,9 @@ public sealed class FontToImageConverter : IMultiValueConverter
             }
         }
 
+        // 高样本（>=120px）用于选中行展开，缓存槽位与大图分开，避免互相覆盖。
+        var isLarge = height >= 120;
+
         var request = new RenderRequest(
             FontKey: string.IsNullOrEmpty(item.FullPath) ? item.FamilyName : item.FullPath,
             FontFilePath: string.IsNullOrEmpty(item.FullPath) ? null : item.FullPath,
@@ -70,17 +73,18 @@ public sealed class FontToImageConverter : IMultiValueConverter
         var cached = AppServices.RenderCache.TryGetFromCache(request);
         if (cached is not null) return cached;
 
-        _ = RenderAndApplyAsync(item, request, text);
+        _ = RenderAndApplyAsync(item, request, isLarge);
         return null;
     }
 
-    private static async Task RenderAndApplyAsync(FontItem item, RenderRequest request, string text)
+    private static async Task RenderAndApplyAsync(FontItem item, RenderRequest request, bool isLarge)
     {
         try
         {
             item.IsPreviewPending = true;
             var bitmap = await AppServices.RenderCache.RenderAsync(request).ConfigureAwait(true);
-            item.PreviewBitmap = bitmap;
+            if (isLarge) item.PreviewBitmapLarge = bitmap;
+            else item.PreviewBitmap = bitmap;
         }
         catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
         {

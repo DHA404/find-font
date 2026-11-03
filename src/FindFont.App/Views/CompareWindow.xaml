@@ -3,80 +3,107 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:FindFont.App.ViewModels"
         xmlns:models="clr-namespace:FindFont.App.Models"
-        Title="多字体对比"
-        Width="1100" Height="640" MinWidth="720" MinHeight="420"
+        Title="对比选中 · find-font"
+        Width="1120" Height="700" MinWidth="760" MinHeight="440"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource AppBackground}"
-        UseLayoutRounding="True">
+        Background="{StaticResource Paper}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        FontFamily="{StaticResource UiFace}">
 
     <Window.DataContext>
         <vm:CompareViewModel />
     </Window.DataContext>
 
-    <Grid Margin="16">
+    <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource FontCard}">
-            <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Left" Text="对比文字" VerticalAlignment="Center"
-                           Foreground="{StaticResource TextSecondary}" Margin="0,0,8,0" />
-                <ComboBox DockPanel.Dock="Right" Width="86" Margin="12,0,0,0" Style="{StaticResource FlatComboBox}"
-                          ItemsSource="{Binding FontSizeOptions}" SelectedItem="{Binding PreviewFontSize}" />
-                <TextBox Style="{StaticResource FlatTextBox}"
+        <Grid Grid.Row="0" Margin="16,14,16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="对比文字" Style="{StaticResource SectionLabel}" />
+                <TextBox Style="{StaticResource FieldTextBox}"
                          Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
-            </DockPanel>
-        </Border>
+            </StackPanel>
 
-        <ItemsControl Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Items}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Columns="1" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Bottom">
+                <TextBlock Text="字号" Style="{StaticResource SectionLabel}" />
+                <ComboBox Width="82" Style="{StaticResource FieldComboBox}"
+                          ItemsSource="{Binding FontSizeOptions}"
+                          SelectedItem="{Binding PreviewFontSize}" />
+            </StackPanel>
+        </Grid>
 
-            <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type models:FontItem}">
-                    <Border Style="{StaticResource FontCard}" Padding="18,14">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="16,0" />
 
-                            <DockPanel Grid.Row="0">
-                                <TextBlock DockPanel.Dock="Left" Text="{Binding BestName}" FontSize="13"
-                                           FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
-                                <Button DockPanel.Dock="Right" Content="移除" FontSize="11"
-                                        Style="{StaticResource GhostButton}"
-                                        Command="{Binding DataContext.RemoveCommand,
-                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}" />
-                                <TextBlock Text="{Binding StyleName}" FontSize="11" Margin="10,1,0,0"
-                                           Foreground="{StaticResource TextSecondary}" />
-                            </DockPanel>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,16">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="1" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
 
-                            <Border Grid.Row="1" Height="150" ClipToBounds="True" Margin="0,8,0,0">
-                                <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"
-                                       RenderOptions.BitmapScalingMode="HighQuality">
-                                    <Image.Source>
-                                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1040x150">
-                                            <Binding />
-                                            <Binding Path="DataContext.PreviewText"
-                                                     RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                            <Binding Path="DataContext.PreviewFontSize"
-                                                     RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
-                                            <Binding Path="PreviewBitmap" />
-                                        </MultiBinding>
-                                    </Image.Source>
-                                </Image>
-                            </Border>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:FontItem}">
+                        <Border BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1">
+                            <StackPanel Margin="16,14,16,14">
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding BestName}" FontFamily="{StaticResource DisplayFace}"
+                                                   FontSize="15" Foreground="{StaticResource Ink}" />
+                                        <TextBlock Text="{Binding StyleName}" FontSize="11" Margin="12,3,0,0"
+                                                   Foreground="{StaticResource InkMuted}" />
+                                        <TextBlock Text="{Binding Weight}" FontSize="11" Margin="12,3,0,0"
+                                                   Foreground="{StaticResource InkFaint}" />
+                                    </StackPanel>
+
+                                    <Button Grid.Column="1" Content="移除" Style="{StaticResource QuietButton}"
+                                            Margin="0,0,-8,0"
+                                            ToolTip="把这个字体从对比里去掉"
+                                            Command="{Binding DataContext.RemoveCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+
+                                <Border Height="150" ClipToBounds="True">
+                                    <Grid>
+                                        <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               RenderOptions.BitmapScalingMode="HighQuality">
+                                            <Image.Source>
+                                                <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1040x150">
+                                                    <Binding />
+                                                    <Binding Path="DataContext.PreviewText"
+                                                             RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    <Binding Path="DataContext.PreviewFontSize"
+                                                             RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
+                                                    <Binding Path="PreviewBitmapLarge" />
+                                                </MultiBinding>
+                                            </Image.Source>
+                                        </Image>
+                                        <TextBlock Text="正在渲染…" FontSize="11" Foreground="{StaticResource InkFaint}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                   Visibility="{Binding PreviewBitmapLarge, Converter={StaticResource NullToVisibility}}" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
     </Grid>
 </Window>

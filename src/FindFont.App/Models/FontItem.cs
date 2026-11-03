@@ -48,7 +48,9 @@ public partial class FontItem : ObservableObject
     [ObservableProperty] private FontCategory _category = FontCategory.All;
 
     // 渲染缓存状态：BitmapSource 由 FontRenderCache 填入，UI 用 Image 展示。
+    // 列表行用 PreviewBitmap（60px 高），选中行展开用 PreviewBitmapLarge（150px 高）。
     [ObservableProperty] private object? _previewBitmap;
+    [ObservableProperty] private object? _previewBitmapLarge;
     [ObservableProperty] private bool _isPreviewPending;
 
     // 健康状态

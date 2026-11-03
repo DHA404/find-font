@@ -1,0 +1,72 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--
+        样本册配色：冷调校样纸灰 + 单一品红校色标记。
+        刻意不用暖米白 + 暖陶色，也不用近黑底 + 荧光色。
+        三层灰度承载层级，品红只用于「选中 / 焦点 / 失效」三种状态。
+    -->
+    <SolidColorBrush x:Key="Paper" Color="#ECEDEF" />
+    <SolidColorBrush x:Key="Sheet" Color="#F6F7F8" />
+    <SolidColorBrush x:Key="SheetRaised" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Ink" Color="#101215" />
+    <SolidColorBrush x:Key="InkMuted" Color="#62676E" />
+    <SolidColorBrush x:Key="InkFaint" Color="#8F959D" />
+    <SolidColorBrush x:Key="Rule" Color="#CDD1D6" />
+    <SolidColorBrush x:Key="Proof" Color="#C4005E" />
+    <SolidColorBrush x:Key="ProofWash" Color="#FCEDF4" />
+
+    <!-- 旧命名兼容别名，逐步替换后可删。 -->
+    <SolidColorBrush x:Key="AppBackground" Color="#ECEDEF" />
+    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="CardHover" Color="#F6F7F8" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#CDD1D6" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#C4005E" />
+    <SolidColorBrush x:Key="TextPrimary" Color="#101215" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#62676E" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#C4005E" />
+
+    <!-- chrome 字体：与「被预览的任意字体」拉开层级。预览内容永远走位图。 -->
+    <FontFamily x:Key="DisplayFace">Cambria</FontFamily>
+    <FontFamily x:Key="UiFace">Segoe UI</FontFamily>
+
+    <sys:Double x:Key="SpecimenRowHeight">60</sys:Double>
+    <sys:Double x:Key="SpecimenRowExpandedHeight">150</sys:Double>
+    <sys:Double x:Key="IndexRailWidth">208</sys:Double>
+    <sys:Double x:Key="ColophonWidth">296</sys:Double>
+    <sys:Double x:Key="TextBodySize">12</sys:Double>
+    <sys:Double x:Key="TextMetaSize">11</sys:Double>
+
+    <Thickness x:Key="GutterThickness">16</Thickness>
+
+    <!-- 全局焦点环：2px 品红实线，替换系统默认虚线框。 -->
+    <Style x:Key="ProofFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Rectangle Margin="-3" Stroke="{StaticResource Proof}" StrokeThickness="2" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{StaticResource Ink}" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="2" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

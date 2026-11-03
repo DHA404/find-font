@@ -171,11 +171,14 @@ public sealed class FontRenderCache : IDisposable
             LineHeight = Math.Max(request.FontSize * 1.15, request.FontSize),
         };
 
+        // 垂直居中：展开态有 150px 高，贴着顶画会让字形浮在上半边。
+        var top = Math.Max(0, (request.PixelHeight - formatted.Height) / 2);
+
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
             dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, request.PixelWidth, request.PixelHeight));
-            dc.DrawText(formatted, new Point(2, 0));
+            dc.DrawText(formatted, new Point(2, top));
         }
 
         var rtb = new RenderTargetBitmap(

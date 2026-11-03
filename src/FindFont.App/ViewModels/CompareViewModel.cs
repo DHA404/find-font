@@ -31,6 +31,22 @@ public partial class CompareViewModel : ObservableObject
     public int ColumnCount => Items.Count;
     public bool IsEmpty => Items.Count == 0;
 
+    partial void OnPreviewTextChanged(string value) => InvalidatePreviews();
+
+    partial void OnPreviewFontSizeChanged(double value) => InvalidatePreviews();
+
+    /// <summary>文本或字号变了，旧位图必须作废，否则转换器会继续交回缓存图。</summary>
+    private void InvalidatePreviews()
+    {
+        AppServices.RenderCache.Clear();
+        foreach (var item in Items)
+        {
+            item.PreviewBitmap = null;
+            item.PreviewBitmapLarge = null;
+            item.IsPreviewPending = false;
+        }
+    }
+
     public void Load(IEnumerable<FontItem> fonts)
     {
         Items.Clear();
@@ -48,6 +64,7 @@ public partial class CompareViewModel : ObservableObject
         foreach (var item in Items)
         {
             item.PreviewBitmap = null;
+            item.PreviewBitmapLarge = null;
             item.IsPreviewPending = false;
         }
     }

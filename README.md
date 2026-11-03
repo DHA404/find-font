@@ -16,6 +16,14 @@ Windows 本地字体预览与管理工具。WPF + .NET 8 + MVVM，单文件分�
 
 Windows 自带的字体查看器只能看文件名，无法一眼看清一个字体在中英文混排下长什么样，也不能批量清理注册表里指向已删除文件的「僵尸字体」。find-font 把本机所有字体按真实字形渲染成缩略图，支持搜索、筛选、对比、安装与卸载。
 
+## 界面
+
+三栏：左栏是分类与风格的索引栏（208px，计数随筛选实时变化），中部是样本列表，右栏「档案」在选中字体时出现（296px），未选中时收起，把宽度还给列表。
+
+视觉上只有一套灰阶 + 一个强调色：纸灰底 `#ECEDEF`、面板 `#F6F7F8`、墨色 `#101215`、发丝线 `#CDD1D6`，以及唯一用来表达「被选中 / 有焦点 / 已失效」的品红 `#C4005E`。界面字体是 Cambria（标题、样本元数据）与 Segoe UI（控件），全部无圆角，靠 1px 线分层而不是靠卡片阴影。
+
+样本文字只用离屏渲染出的位图，XAML 里不会出现 `FontFamily` 绑定（见下节），因此界面字体与字体列表渲染互不影响。
+
 ## 核心设计约束
 
 | 问题 | 方案 | 代码位置 |
@@ -62,7 +70,8 @@ dotnet build FindFont.slnx -c Debug
 ```
 src/FindFont.Launcher/           .NET Framework 4.8 引导器（运行时检测 + 启动 FindFont.App.exe）
 src/FindFont.App/
-  Models/FontItem.cs              字体条目模型（含 DedupKey、BestName 回退链）
+  Models/FontItem.cs              字体条目模型（含 DedupKey、BestName 回退链、小样本/大样本两个位图槽位）
+  Models/FacetItem.cs             左栏分类索引行（名称固定、计数可就地更新）
   Helpers/NativeMethods.cs        AddFontResourceEx / RemoveFontResourceEx / WM_FONTCHANGE 广播
   Helpers/FontMetadataReader.cs   直读 sfnt 的 name/OS/2/head 表取家族名、本地化名、字重、斜体（GlyphTypeface 仅作回退）
   Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属（计划书 6A，不解析字符表）
@@ -71,7 +80,9 @@ src/FindFont.App/
   Services/FontInstaller.cs       安装 / 卸载 / 清理异常（仅提权进程执行）
   Services/ElevationHost.cs       --install-font 等参数协议的微进程宿主
   Converters/                     FontToImage（MultiBinding → BitmapSource）、可见性转换器
-  ViewModels/MainViewModel.cs     扫描、防抖搜索、筛选、多选、安装卸载
+  Themes/Tokens.xaml              色板、字体、尺寸常量（唯一配色来源）
+  Themes/Controls.xaml            发丝线、文本框、按钮、索引行、样本行、档案区样式
+  ViewModels/MainViewModel.cs     扫描、防抖搜索、筛选、多选、分类计数、档案面板、安装卸载
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
   Views/MainWindow.xaml(.cs)      主窗口
   Views/CompareWindow.xaml(.cs)   对比窗口
@@ -94,16 +105,20 @@ build.cmd test
 8. `MainViewModel` 真实加载后验证搜索、分类筛选、风格筛选与清空恢复
 9. 1 万条字体的压测：装载、搜索、筛选、清空恢复各自的耗时上限（搜索/筛选 < 500 ms）
 10. `CompareViewModel` 最多三栏上限与移除后栏数变化
+11. 界面资源与主窗口可构造：主题字典已合并、`MainWindow`/`CompareWindow` 能实例化、分类索引行的计数与选中分类下的可见项数一致
 
-当前全部通过（10 项）。
+当前全部通过（11 项）。
 
 ## 使用说明
 
 - **搜索**：输入任意语言、任意大小写，匹配显示名 / 本地化名 / 中文名 / 家族名 / 文件名 / 样式名。
-- **筛选**：分类（中文、西文、其他）+ 风格（常规、粗体、斜体）+ 只看异常。
-- **对比**：按住 Ctrl 在列表里选 2–3 个字体，点「对比」。对比窗口里改文字会立刻重渲染所有栏位。
-- **安装**：点「安装字体」选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃操作，不会留下半成品。
-- **清理异常**：只删除注册表中指向缺失文件的登记项，**不会删除任何字体文件**。
+- **筛选**：左栏「分类」列出全部 / 中文 / 西文 / 其他及各自数量；「风格」是四个方块开关（全部 / 常规 / 粗体 / 斜体，互斥）；「只看失效登记」把范围收窄到注册表里指向已删除文件的条目。
+- **看细节**：单击任意一行，该行展开成 150px 的大样本，右侧「档案」面板列出家族、本地化名、样式、字重、文件、路径、语言与状态。
+- **对比选中**：按住 Ctrl 选 1–3 个字体后点「对比选中」，或直接双击某一行。对比窗口里改文字会立刻重渲染所有栏位。
+- **从文件安装**：选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃操作，不会留下半成品。
+- **卸载字体**：对选中项执行，同样要 UAC。
+- **清理失效登记**：只删除注册表中指向缺失文件的登记项，**不会删除任何字体文件**。
+- **快捷键**：`Ctrl+F` 聚焦搜索框，`Esc` 清空搜索（再按一次取消选中），`Enter` 打开选中项的对比窗口。
 
 ## 性能基线
 
@@ -112,8 +127,8 @@ build.cmd test
 | 场景 | 耗时 |
 | --- | --- |
 | 注册表扫描出列表 | 约 500 ms |
-| 全量补全文件名（直读 sfnt） | 约 420 ms（0.32 ms/文件） |
-| 1 万条字体的搜索 / 筛选 | 75 ms / 25 ms |
+| 全量补全文件名（直读 sfnt） | 约 480 ms（0.36 ms/文件） |
+| 1 万条字体的搜索 / 筛选 | 175 ms / 110 ms |
 | 内存占用（1333 个字体、可视区渲染完） | 约 120 MB |
 
 ## 已知限制

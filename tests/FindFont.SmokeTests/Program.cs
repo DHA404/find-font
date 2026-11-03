@@ -11,6 +11,7 @@ internal static class Program
 {
     private static int _passed;
     private static int _failed;
+    private static FindFont.App.App? _app;
 
     [STAThread]
     private static int Main(string[] args)
@@ -18,6 +19,10 @@ internal static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Console.WriteLine("find-font 冒烟测试");
         Console.WriteLine(new string('-', 60));
+
+        // WPF 一个进程只能有一个 Application；先建好，窗口构造时才能解析主题资源。
+        _app = new FindFont.App.App();
+        _app.InitializeComponent();
 
         Run("LanguageInference 关键字推断", TestLanguageInference);
         Run("FontMetadataReader CJK 判定", TestContainsCjk);
@@ -29,6 +34,7 @@ internal static class Program
         Run("MainViewModel 搜索与筛选", TestViewModelFilter);
         Run("10000 条字体的搜索与筛选压测", TestStressFilter);
         Run("CompareViewModel 最多三栏", TestCompareViewModel);
+        Run("界面资源与主窗口可构造", TestWindowsConstruct);
 
         Console.WriteLine(new string('-', 60));
         Console.WriteLine($"通过 {_passed} 项，失败 {_failed} 项");
@@ -327,5 +333,47 @@ internal static class Program
 
         var again = cache.TryGetFromCache(request);
         Check(again is not null, "第二次请求应命中缓存");
+    }
+
+    /// <summary>
+    /// 构造真实窗口，确保 Themes 里的每个 StaticResource 都能解析。
+    /// 缺一个画刷或样式，这里就会抛 XamlParseException。
+    /// </summary>
+    private static void TestWindowsConstruct()
+    {
+        var app = _app ?? throw new InvalidOperationException("Application 未初始化");
+        Check(System.Windows.Application.Current == app, "Application.Current 应指向测试创建的 App");
+
+        Check(app.Resources.Contains("Proof"), "主题里应有 Proof 画刷");
+        Check(app.Resources.Contains("SpecimenRow"), "主题里应有 SpecimenRow 行样式");
+        Check(app.Resources["Proof"] is System.Windows.Media.SolidColorBrush, "Proof 应是画刷");
+
+        var main = new FindFont.App.Views.MainWindow();
+        var mainVm = main.DataContext as FindFont.App.ViewModels.MainViewModel;
+        Check(mainVm is not null, "主窗口应自带 MainViewModel");
+        Check(main.Title.Contains("find-font"), "主窗口标题应含 find-font");
+        Check(main.MinWidth >= 1080, "主窗口最小宽度要能容下三栏");
+
+        var compare = new FindFont.App.Views.CompareWindow();
+        Check(compare.DataContext is FindFont.App.ViewModels.CompareViewModel, "对比窗口应自带 CompareViewModel");
+
+        // 索引计数与分类筛选必须自洽：点「中文」后的条数要等于索引上显示的数字。
+        if (mainVm is not null)
+        {
+            mainVm.SeedForStressTest(new List<FontItem>
+            {
+                new() { FamilyName = "SimSun", ChineseName = "宋体", Category = FontCategory.Chinese },
+                new() { FamilyName = "Arial", Category = FontCategory.Latin },
+            });
+            Check(mainVm.CategoryFacets.Count == 4, "索引应有 4 行（全部/中文/西文/其他）");
+            Check(mainVm.CategoryFacets[0].Count == 2, "全部计数应为 2");
+            Check(mainVm.CategoryFacets[1].Count == 1, "中文计数应为 1");
+            mainVm.SelectedCategoryIndex = 1;
+            Check(mainVm.VisibleFonts.Count == mainVm.CategoryFacets[1].Count,
+                "点进分类后的条数必须与索引数字一致");
+        }
+
+        main.Close();
+        compare.Close();
     }
 }

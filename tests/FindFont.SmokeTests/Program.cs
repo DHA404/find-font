@@ -159,8 +159,12 @@ internal static class Program
         var sfntFailed = sfntFiles.Count(i => FontMetadataReader.TryRead(i.FullPath) is null);
         Check(sfntFailed == 0, $"sfnt 字体不应解析失败，实际 {sfntFailed} 个");
 
-        // 直读路径必须比 GlyphTypeface 快一个数量级，否则说明误走了回退。
-        Check(perFont < 5, $"平均解析耗时应低于 5 ms/文件，实际 {perFont:F2} ms");
+        // 关键断言：直读路径必须能独立解析出所有 sfnt 字体。若这里失败，
+        // 说明 TryRead 退回了几十毫秒一个的 GlyphTypeface 回退路径。
+        // （不在这里卡耗时：CI 的磁盘随机读可能比本机慢一个数量级，用毫秒数做断言只会假失败。）
+        var directFailed = sfntFiles.Count(i => FontMetadataReader.TryReadSfnt(i.FullPath) is null);
+        Check(directFailed == 0, $"直读 sfnt 路径不应退回 GlyphTypeface，实际 {directFailed} 个文件只能靠回退");
+        Console.WriteLine($"        直读覆盖 {sfntFiles.Count}/{sfntFiles.Count}，平均 {perFont:F2} ms/文件");
 
         // 抽样验证解析出的名字与实际字体一致（本机存在时才断言）。
         AssertFamily(files, "simsun.ttc", "SimSun", "宋体");

@@ -63,7 +63,8 @@ public static class FontMetadataReader
 
     // ---------------------------------------------------------------- sfnt
 
-    private static FontFileInfo? TryReadSfnt(string filePath)
+    /// <summary>仅走直读 sfnt 的路径，供测试断言「没有退回 GlyphTypeface」。</summary>
+    internal static FontFileInfo? TryReadSfnt(string filePath)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite, 4096, FileOptions.RandomAccess);

@@ -44,6 +44,8 @@ jobs:
       - name: Package portable zip
         shell: pwsh
         run: |
+          # 调试符号对使用者无意义，且会让未压缩体积翻倍。
+          Get-ChildItem publish -Filter *.pdb -Recurse | Remove-Item -Force
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path "publish/*" -DestinationPath "dist/find-font-win-x64.zip" -Force
 

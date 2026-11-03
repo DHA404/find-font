@@ -8,7 +8,7 @@ Windows 本地字体预览与管理工具。WPF + .NET 8 + MVVM，单文件分�
 
 ## 现在下载
 
-到 [Releases](../../releases/latest) 下载 `find-font-win-x64.zip`，解压后双击 **`FindFont.exe`** 即可。绿色版，免安装。
+到 [Releases](../../releases) 下载最新的 `find-font-<version>-win-x64.zip`，解压后双击 **`FindFont.exe`** 即可。绿色版，免安装。
 
 需要 .NET 8 桌面运行时；没装的话引导器会弹框并给出下载链接。
 

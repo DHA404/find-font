@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using FindFont.App.Helpers;
 using FindFont.App.Models;
 using FindFont.App.ViewModels;
 
@@ -8,10 +11,24 @@ namespace FindFont.App.Views;
 
 public partial class MainWindow : Window
 {
+    /// <summary>单行入场位移的起点：只有一点点，够让人感知到「换了一批」，不做过场特效。</summary>
+    private const double EntranceOffset = 14;
+
+    /// <summary>相邻两行入场的时间差，超过上限后不再累加，避免长列表尾部等太久。</summary>
+    private const double StaggerStepMs = 12;
+
+    private const double StaggerCapMs = 180;
+
+    private bool _entrancePending;
+
+    private bool _firstLoadDone;
+
     public MainWindow()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        ViewModel.FilterApplied += OnFilterApplied;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
@@ -19,7 +36,75 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
+
+        // 窗口入场：整块内容淡入，纸色底已经在，不会闪白。
+        if (Motion.Enabled)
+        {
+            PaperLayer.Opacity = 0;
+            PaperLayer.BeginAnimation(OpacityProperty, Motion.Hold(1, Motion.Slow));
+        }
+
         await ViewModel.LoadAsync();
+        _firstLoadDone = true;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // 补名阶段会反复 ApplyFilter，只有真正稳定下来那次才播入场，否则列表一直在抖。
+        if (e.PropertyName == nameof(MainViewModel.IsLoading) && !ViewModel.IsLoading && _firstLoadDone)
+        {
+            QueueEntrance();
+        }
+    }
+
+    private void OnFilterApplied(object? sender, EventArgs e) => QueueEntrance();
+
+    /// <summary>
+    /// 筛选入场：等容器真正生成后再播，且只播一次。
+    /// 用 Tag 标记「这一行已经入过场」，回收出来的容器换数据后 Tag 会跟着清掉，能重新播。
+    /// </summary>
+    private void QueueEntrance()
+    {
+        if (!Motion.Enabled || _entrancePending) return;
+
+        _entrancePending = true;
+        Dispatcher.BeginInvoke(new Action(RunEntrance), System.Windows.Threading.DispatcherPriority.ContextIdle);
+    }
+
+    private void RunEntrance()
+    {
+        _entrancePending = false;
+
+        for (var i = 0; i < FontList.Items.Count; i++)
+        {
+            if (FontList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem container) continue;
+            if (container.Tag is true) continue;
+
+            container.Tag = true;
+            AnimateContainer(container, i);
+        }
+    }
+
+    private static void AnimateContainer(ListBoxItem container, int index)
+    {
+        var delay = TimeSpan.FromMilliseconds(Math.Min(index * StaggerStepMs, StaggerCapMs));
+
+        if (container.RenderTransform is not TranslateTransform move)
+        {
+            move = new TranslateTransform();
+            container.RenderTransform = move;
+        }
+
+        container.Opacity = 0;
+        move.X = EntranceOffset;
+
+        var fade = Motion.Hold(1, Motion.Base);
+        fade.BeginTime = delay;
+        container.BeginAnimation(OpacityProperty, fade);
+
+        var slide = Motion.To(0, Motion.Base);
+        slide.BeginTime = delay;
+        move.BeginAnimation(TranslateTransform.XProperty, slide);
     }
 
     private void OnFontSelectionChanged(object sender, SelectionChangedEventArgs e)

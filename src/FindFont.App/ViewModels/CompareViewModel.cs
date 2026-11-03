@@ -14,9 +14,9 @@ public partial class CompareViewModel : ObservableObject
     public ObservableCollection<FontItem> Items { get; } = new();
 
     [ObservableProperty] private string _previewText = AppServices.PreviewText;
-    [ObservableProperty] private double _previewFontSize = 48;
+    [ObservableProperty] private double _previewFontSize = 64;
 
-    public IReadOnlyList<double> FontSizeOptions { get; } = new[] { 32d, 40d, 48d, 64d, 80d, 96d };
+    public IReadOnlyList<double> FontSizeOptions { get; } = new[] { 40d, 52d, 64d, 80d, 104d, 128d };
 
     public CompareViewModel()
     {

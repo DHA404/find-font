@@ -1,0 +1,167 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:models="clr-namespace:FindFont.App.Models"
+                    xmlns:motion="clr-namespace:FindFont.App.Helpers">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Tokens.xaml" />
+        <ResourceDictionary Source="Converters.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        样本行。收起时 72px 小样本，选中后同一容器长到 180px 并换成大样本。
+        高度动画 + 双图交叉淡化同时进行：字形始终垂直居中，所以看起来是「行张开」，
+        而不是把一张图硬切掉再塞一张。虚拟化回收时触发器撤下，动画值会被还原。
+    -->
+    <DataTemplate x:Key="SpecimenRowTemplate" DataType="{x:Type models:FontItem}">
+        <StackPanel Margin="26,0,26,0">
+            <Grid x:Name="SpecimenBox" ClipToBounds="True">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Height" Value="{StaticResource SpecimenRowHeight}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected,
+                                     RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="HoldEnd">
+                                            <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                             To="{StaticResource SpecimenRowExpandedHeight}"
+                                                             Duration="{x:Static motion:Motion.BaseXaml}"
+                                                             EasingFunction="{x:Static motion:Motion.Ease}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="HoldEnd">
+                                            <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                             To="{StaticResource SpecimenRowHeight}"
+                                                             Duration="{x:Static motion:Motion.BaseXaml}"
+                                                             EasingFunction="{x:Static motion:Motion.Ease}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <!-- 收起态小样本：选中时淡出 -->
+                <Image x:Name="SmallSample" Stretch="None" HorizontalAlignment="Left"
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected,
+                                         RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard FillBehavior="HoldEnd">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0"
+                                                                 Duration="{x:Static motion:Motion.FastXaml}" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard FillBehavior="HoldEnd">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1"
+                                                                 Duration="{x:Static motion:Motion.BaseXaml}" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                    <Image.Source>
+                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1500x92">
+                            <Binding />
+                            <Binding Path="DataContext.PreviewText"
+                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                            <Binding Path="DataContext.PreviewFontSize"
+                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                            <Binding Path="PreviewBitmap" />
+                        </MultiBinding>
+                    </Image.Source>
+                </Image>
+
+                <!-- 展开态大样本：默认透明，选中时淡入 -->
+                <Image x:Name="LargeSample" Stretch="None" HorizontalAlignment="Left"
+                       VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Opacity" Value="0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected,
+                                         RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard FillBehavior="HoldEnd">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1"
+                                                                 Duration="{x:Static motion:Motion.BaseXaml}"
+                                                                 BeginTime="0:0:0.06" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard FillBehavior="HoldEnd">
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0"
+                                                                 Duration="{x:Static motion:Motion.FastXaml}" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                    <Image.Source>
+                        <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1500x220">
+                            <Binding />
+                            <Binding Path="DataContext.PreviewText"
+                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                            <Binding Path="DataContext.PreviewFontSize"
+                                     RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                            <Binding Path="PreviewBitmapLarge" />
+                        </MultiBinding>
+                    </Image.Source>
+                </Image>
+
+                <!-- 首次渲染占位：只在两张图都没出图时可见 -->
+                <TextBlock Text="正在渲染…" FontSize="{StaticResource TextMetaSize}" Foreground="{StaticResource InkFaint}"
+                           VerticalAlignment="Center" HorizontalAlignment="Left"
+                           Visibility="{Binding PreviewBitmap, Converter={StaticResource NullToVisibility}}" />
+            </Grid>
+
+            <Grid Margin="0,10,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="{Binding BestName}" FontSize="{StaticResource TextBodySize}" FontWeight="SemiBold"
+                               Foreground="{StaticResource Ink}" />
+                    <TextBlock Text="{Binding StyleName}" FontSize="{StaticResource TextMetaSize}" Margin="16,1,0,0"
+                               Foreground="{StaticResource InkMuted}" />
+                    <TextBlock Text="{Binding Weight}" FontSize="{StaticResource TextMetaSize}" Margin="16,1,0,0"
+                               Foreground="{StaticResource InkFaint}" />
+                    <TextBlock Text="{Binding FileName}" FontSize="{StaticResource TextMetaSize}" Margin="16,1,0,0"
+                               Foreground="{StaticResource InkFaint}" />
+                </StackPanel>
+
+                <Border Grid.Column="1" Background="{StaticResource ProofWash}"
+                        CornerRadius="2" Padding="7,2" VerticalAlignment="Center"
+                        Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource TextMetaSize}"
+                               Foreground="{StaticResource Proof}" />
+                </Border>
+            </Grid>
+        </StackPanel>
+    </DataTemplate>
+
+</ResourceDictionary>

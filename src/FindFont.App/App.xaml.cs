@@ -19,6 +19,11 @@ public partial class App : Application
 
         var window = new MainWindow();
         MainWindow = window;
+
+        // 在 Show 之前套材质：DWM 只在窗口首次合成时读 backdrop 属性，
+        // 显示之后再设会有一次可见的材质闪变。
+        Helpers.WindowBackdrop.Apply(window);
+
         window.Show();
     }
 

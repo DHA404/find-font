@@ -16,6 +16,12 @@ public partial class MainViewModel : ObservableObject
 
     private const int SearchDebounceMs = 300;
 
+    /// <summary>
+    /// 每次筛选结果落地后触发。视图用它播放入场动画——视图模型不碰任何 UI 类型，
+    /// 也不关心订阅者是不是窗口。
+    /// </summary>
+    public event EventHandler? FilterApplied;
+
     public ObservableCollection<FontItem> VisibleFonts { get; } = new();
 
     public ObservableCollection<FontItem> SelectedFonts { get; } = new();
@@ -30,11 +36,11 @@ public partial class MainViewModel : ObservableObject
         new[] { "全部字重", "常规", "粗体", "斜体" };
 
     public IReadOnlyList<double> FontSizeOptions { get; } =
-        new[] { 16d, 22d, 28d, 36d, 48d, 64d };
+        new[] { 20d, 28d, 36d, 48d, 64d, 88d };
 
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _previewText = "The quick brown fox 0123 你好，世界";
-    [ObservableProperty] private double _previewFontSize = 28;
+    [ObservableProperty] private double _previewFontSize = 36;
     [ObservableProperty] private int _selectedCategoryIndex;
     [ObservableProperty] private int _selectedStyleIndex;
     [ObservableProperty] private bool _showBrokenOnly;
@@ -337,6 +343,9 @@ public partial class MainViewModel : ObservableObject
 
         SelectedFonts.Clear();
         SelectionChanged();
+
+        // 结果集已经稳定，通知视图播放入场。
+        FilterApplied?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

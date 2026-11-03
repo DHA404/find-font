@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:FindFont.App.ViewModels"
         xmlns:models="clr-namespace:FindFont.App.Models"
         Title="对比选中 · find-font"
-        Width="1120" Height="700" MinWidth="760" MinHeight="440"
+        Width="1440" Height="900" MinWidth="1000" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource Paper}"
         UseLayoutRounding="True"
@@ -15,14 +15,14 @@
         <vm:CompareViewModel />
     </Window.DataContext>
 
-    <Grid>
+    <Grid x:Name="PaperLayer" Background="{StaticResource Paper}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="16,14,16,12">
+        <Grid Grid.Row="0" Margin="32,24,32,20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -30,22 +30,22 @@
 
             <StackPanel Grid.Column="0">
                 <TextBlock Text="对比文字" Style="{StaticResource SectionLabel}" />
-                <TextBox Style="{StaticResource FieldTextBox}"
+                <TextBox x:Name="PreviewBox" Style="{StaticResource FieldTextBox}"
                          Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Bottom">
+            <StackPanel Grid.Column="1" Margin="20,0,0,0" VerticalAlignment="Bottom">
                 <TextBlock Text="字号" Style="{StaticResource SectionLabel}" />
-                <ComboBox Width="82" Style="{StaticResource FieldComboBox}"
+                <ComboBox Width="108" Style="{StaticResource FieldComboBox}"
                           ItemsSource="{Binding FontSizeOptions}"
                           SelectedItem="{Binding PreviewFontSize}" />
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="16,0" />
+        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="32,0" />
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,16">
+            <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,20">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Columns="1" />
@@ -55,8 +55,8 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type models:FontItem}">
                         <Border BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1">
-                            <StackPanel Margin="16,14,16,14">
-                                <Grid Margin="0,0,0,8">
+                            <StackPanel Margin="32,26,32,26">
+                                <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -64,27 +64,27 @@
 
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="{Binding BestName}" FontFamily="{StaticResource DisplayFace}"
-                                                   FontSize="15" Foreground="{StaticResource Ink}" />
-                                        <TextBlock Text="{Binding StyleName}" FontSize="11" Margin="12,3,0,0"
+                                                   FontSize="20" Foreground="{StaticResource Ink}" />
+                                        <TextBlock Text="{Binding StyleName}" FontSize="12" Margin="14,4,0,0"
                                                    Foreground="{StaticResource InkMuted}" />
-                                        <TextBlock Text="{Binding Weight}" FontSize="11" Margin="12,3,0,0"
+                                        <TextBlock Text="{Binding Weight}" FontSize="12" Margin="14,4,0,0"
                                                    Foreground="{StaticResource InkFaint}" />
                                     </StackPanel>
 
                                     <Button Grid.Column="1" Content="移除" Style="{StaticResource QuietButton}"
-                                            Margin="0,0,-8,0"
+                                            Margin="0,0,-9,0"
                                             ToolTip="把这个字体从对比里去掉"
                                             Command="{Binding DataContext.RemoveCommand,
                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding}" />
                                 </Grid>
 
-                                <Border Height="150" ClipToBounds="True">
+                                <Border Height="210" ClipToBounds="True">
                                     <Grid>
                                         <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Center"
                                                RenderOptions.BitmapScalingMode="HighQuality">
                                             <Image.Source>
-                                                <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1040x150">
+                                                <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1360x210">
                                                     <Binding />
                                                     <Binding Path="DataContext.PreviewText"
                                                              RelativeSource="{RelativeSource AncestorType=ItemsControl}" />
@@ -94,7 +94,7 @@
                                                 </MultiBinding>
                                             </Image.Source>
                                         </Image>
-                                        <TextBlock Text="正在渲染…" FontSize="11" Foreground="{StaticResource InkFaint}"
+                                        <TextBlock Text="正在渲染…" FontSize="12" Foreground="{StaticResource InkFaint}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Left"
                                                    Visibility="{Binding PreviewBitmapLarge, Converter={StaticResource NullToVisibility}}" />
                                     </Grid>

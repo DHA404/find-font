@@ -16,6 +16,9 @@
     <SolidColorBrush x:Key="Rule" Color="#CDD1D6" />
     <SolidColorBrush x:Key="Proof" Color="#C4005E" />
     <SolidColorBrush x:Key="ProofWash" Color="#FCEDF4" />
+    <!-- 材质透出时铺在内容下的半透明纸色：正文永远有足够对比度，不直接压在 Mica 上。 -->
+    <SolidColorBrush x:Key="PaperVeil" Color="#F0ECEDEF" />
+    <SolidColorBrush x:Key="InkHairlineSoft" Color="#383C42" />
 
     <!-- 旧命名兼容别名，逐步替换后可删。 -->
     <SolidColorBrush x:Key="AppBackground" Color="#ECEDEF" />
@@ -27,16 +30,32 @@
     <SolidColorBrush x:Key="TextSecondary" Color="#62676E" />
     <SolidColorBrush x:Key="DangerBrush" Color="#C4005E" />
 
+    <!-- 原始 Color：需要做 ColorAnimation 的地方只能动画 Color，不能动画 Brush。 -->
+    <Color x:Key="PaperColor">#ECEDEF</Color>
+    <Color x:Key="SheetColor">#F6F7F8</Color>
+    <Color x:Key="SheetRaisedColor">#FFFFFF</Color>
+    <Color x:Key="InkColor">#101215</Color>
+    <Color x:Key="InkMutedColor">#62676E</Color>
+    <Color x:Key="RuleColor">#CDD1D6</Color>
+    <Color x:Key="ProofColor">#C4005E</Color>
+
     <!-- chrome 字体：与「被预览的任意字体」拉开层级。预览内容永远走位图。 -->
     <FontFamily x:Key="DisplayFace">Cambria</FontFamily>
     <FontFamily x:Key="UiFace">Segoe UI</FontFamily>
 
-    <sys:Double x:Key="SpecimenRowHeight">60</sys:Double>
-    <sys:Double x:Key="SpecimenRowExpandedHeight">150</sys:Double>
-    <sys:Double x:Key="IndexRailWidth">208</sys:Double>
-    <sys:Double x:Key="ColophonWidth">296</sys:Double>
-    <sys:Double x:Key="TextBodySize">12</sys:Double>
-    <sys:Double x:Key="TextMetaSize">11</sys:Double>
+    <!--
+        版面尺度集中在这里。整册按 1.25 倍放大过一轮：
+        原先把 13px 正文配 72px 行高在高分屏上读起来像缩略图，
+        现在正文 14 / 元数据 13 / 样本行 92，选中展开 220。
+    -->
+    <sys:Double x:Key="SpecimenRowHeight">92</sys:Double>
+    <sys:Double x:Key="SpecimenRowExpandedHeight">220</sys:Double>
+    <sys:Double x:Key="IndexRailWidth">272</sys:Double>
+    <sys:Double x:Key="ColophonWidth">380</sys:Double>
+    <sys:Double x:Key="TextBodySize">14</sys:Double>
+    <sys:Double x:Key="TextMetaSize">13</sys:Double>
+    <sys:Double x:Key="TitleSize">26</sys:Double>
+    <sys:Double x:Key="SectionLabelSize">12</sys:Double>
 
     <Thickness x:Key="GutterThickness">16</Thickness>
 

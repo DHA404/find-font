@@ -1,58 +1,149 @@
 # find-font
 
-[![build](https://github.com/DHA404/find-font/actions/workflows/build.yml/badge.svg)](https://github.com/DHA404/find-font/actions/workflows/build.yml)
+**把本机装的所有字体，一次看全。**
 
-Windows 本地字体预览与管理工具。WPF + .NET 8 + MVVM，单文件分发，附带一个 .NET Framework 4.8 引导器负责运行时检测。
+Windows 自带的字体查看器只会列文件名。想知道「这个字体排版出来长什么样」「这台机器到底装了多少中文字体」「注册表里那条指向已删除文件的僵尸登记怎么清掉」，它都帮不上忙。find-font 把系统里每个字体按真实字形渲染成样本，让你像翻样本册一样浏览、搜索、对比、安装与卸载。
+
+[![build](https://github.com/DHA404/find-font/actions/workflows/build.yml/badge.svg)](https://github.com/DHA404/find-font/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/DHA404/find-font?include_prereleases&label=release)](https://github.com/DHA404/find-font/releases)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![platform](https://img.shields.io/badge/platform-Windows%2010%201803%2B%20%7C%2011-lightgrey.svg)](#-环境要求)
 
 ![find-font 主界面](docs/screenshot.png)
 
-## 现在下载
+## 目录
 
-到 [Releases](../../releases) 下载最新的 `find-font-<version>-win-x64.zip`，解压后双击 **`FindFont.exe`** 即可。绿色版，免安装。
+- [为什么做这个](#为什么做这个)
+- [功能](#功能)
+- [快速开始](#快速开始)
+- [使用](#使用)
+- [界面](#界面)
+- [核心设计约束](#核心设计约束)
+- [架构](#架构)
+- [构建](#构建)
+- [项目结构](#项目结构)
+- [测试](#测试)
+- [性能基线](#性能基线)
+- [版本与发布](#版本与发布)
+- [已知限制](#已知限制)
+- [贡献](#贡献)
+- [许可](#许可)
 
-需要 .NET 8 桌面运行时；没装的话引导器会弹框并给出下载链接。
+## 为什么做这个
 
-## 它解决什么
+三个具体痛点：
 
-Windows 自带的字体查看器只能看文件名，无法一眼看清一个字体在中英文混排下长什么样，也不能批量清理注册表里指向已删除文件的「僵尸字体」。find-font 把本机所有字体按真实字形渲染成缩略图，支持搜索、筛选、对比、安装与卸载。
+1. **看不见字形。** 字体名是「方正准圆简体」，但它到底圆到什么程度、中英文混排时基线对不对，只有渲染出来才知道。
+2. **分不清语言归属。** 系统里同时装着西文、中文、日文、韩文上百套字体，靠名字猜和靠眼睛翻是两回事。
+3. **有僵尸登记。** 卸载软件时常留下「注册表说有这个字体、文件却已不存在」的条目，普通界面里看不见，也不容易删。
 
-## 版本与发布
+find-font 对这三件事的处理分别是：全部字体离屏渲染成位图、按名字关键词推断语言并计数、把失效登记单独标出来并支持一键清理（只删注册表项，不动任何字体文件）。
 
-版本号只写在仓库根的 `version.txt` 一处。`Directory.Build.props` 把它读成 `Version`，所以程序集元数据、窗口标题行、`dist\find-font-<version>-win-x64.zip` 的命名、CI 的打包与校验全都来自同一个值。
+## 功能
 
-发一个新版本就是三步：
+| 功能 | 说明 |
+| --- | --- |
+| **全字体预览** | 本机 1300+ 个字体逐个按真实字形渲染，中英文混排，滚动即见 |
+| **实时搜索** | 300 ms 防抖，匹配显示名 / 本地化名 / 中文名 / 家族名 / 文件名 / 样式名，任意大小写 |
+| **分类与风格筛选** | 全部 / 中文 / 西文 / 其他，全部 / 常规 / 粗体 / 斜体，计数随筛选实时刷新 |
+| **多字体对比** | 按住 Ctrl 选 1–3 个字体同屏对照，改对比文字立刻重渲染 |
+| **自定义样本文字** | 顶部输入框改一次，整个列表与对比窗口同步 |
+| **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程 |
+| **失效登记清理** | 删除注册表里指向缺失文件的条目，**不删除任何字体文件** |
+| **键盘优先** | `Ctrl+F` 搜索、`Esc` 逐层退出、`Enter` 直接对比 |
 
-```bash
-echo 0.3.0-alpha > version.txt                        # 1. 改版本号
-git commit -am "release: 0.3.0-alpha"                 # 2. 提交
-git tag v0.3.0-alpha && git push origin main --tags   # 3. 打新 tag
-```
+## 快速开始
 
-tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，不一致直接失败，避免「新 tag 顶着旧版本号发出去」。每个版本用独立的新 tag —— 不要删掉旧 tag 再重建：复用同一个 tag 会让 Release 页面一直显示同一个版本号，也让「这次究竟改了什么」无法追溯。
+### 环境要求
+
+- Windows 10 1803 及以上，或 Windows 11
+- [.NET 8 桌面运行时](https://dotnet.microsoft.com/download/dotnet/8.0)（Desktop Runtime）
+
+### 安装
+
+到 [Releases](../../releases) 下载 `find-font-<version>-win-x64.zip`，解压到任意目录，双击 **`FindFont.exe`**。绿色版，不写系统目录、不需要安装程序。
+
+压缩包里只有两个文件：
+
+| 文件 | 说明 |
+| --- | --- |
+| `FindFont.exe` | 入口引导器（.NET Framework 4.8，约 7 KB），先检测桌面运行时再启动主程序 |
+| `FindFont.App.exe` | 主程序，框架依赖单文件（约 400 KB） |
+
+没装 .NET 8 时双击不会毫无反应——引导器会弹框说明缺什么、并给出下载链接。
+
+## 使用
+
+| 操作 | 怎么做 |
+| --- | --- |
+| 搜索 | 顶部「搜索」框直接输入，或按 `Ctrl+F` |
+| 筛选 | 左栏点分类行；风格是四个互斥方块；「只看失效登记」收窄到僵尸条目 |
+| 看细节 | 单击任意一行，该行展开成大样本，右侧「档案」列出家族、本地化名、样式、字重、文件、路径、语言、状态 |
+| 对比 | 按住 `Ctrl` 选 1–3 个字体后点「对比选中」，或直接双击某一行 |
+| 改样本 | 顶部「样本文字」框，全局生效 |
+| 换字号 | 右上角字号下拉（20–88） |
+| 安装 | 「从文件安装」选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃，不留半成品 |
+| 卸载 | 选中后点「卸载字体」，同样走 UAC |
+| 清理 | 「清理失效登记」只删注册表项 |
+| 退出搜索 | `Esc` 清空搜索词，再按一次取消选中 |
+| 对比窗口 | `Enter`，或双击列表行 |
 
 ## 界面
 
-默认 1600×1000（最小 1280×780），三栏：左栏是分类与风格的索引栏（272px，计数随筛选实时变化），中部是样本列表，右栏「档案」在选中字体时出现（380px），未选中时收起，把宽度还给列表。
+默认 1600×1000（最小 1280×780），三栏：索引栏 272px、样本列表、选中时出现的「档案」面板 380px。
 
 视觉上只有一套灰阶 + 一个强调色：纸灰底 `#ECEDEF`、面板 `#F6F7F8`、墨色 `#101215`、发丝线 `#CDD1D6`，以及唯一用来表达「被选中 / 有焦点 / 已失效」的品红 `#C4005E`。界面字体是 Cambria（标题、样本元数据）与 Segoe UI（控件），全部无圆角，靠 1px 线分层而不是靠卡片阴影。
 
-样本行默认 92px，选中后容器高度动画长到 220px，小样本淡出、大样本延迟 60ms 淡入 —— 字形始终垂直居中，观感是「行张开」而不是换图。筛选结果会逐行错开入场（每行延迟 12ms、封顶 180ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
+样本行默认 92px，选中后容器高度动画长到 220px，小样本淡出、大样本延迟 60 ms 淡入——字形始终垂直居中，观感是「行张开」而不是换图。筛选结果逐行错开入场（每行延迟 12 ms、封顶 180 ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
 
-窗口材质走 `DWMWA_SYSTEMBACKDROP_TYPE`（Win11 22H2+），旧的 `DWMWA_MICA_EFFECT` 与 Win10 的 `SetWindowCompositionAttribute` 逐级回退，全部失败时留在不透明纸色上；材质真正生效时内容层铺 `#F0ECEDEF` 半透明纸色，保证正文对比度不随壁纸变化。所有动画都读 `SystemParameters.ClientAreaAnimation`，系统关掉动画即全部退化为瞬时切换。
+窗口材质走 `DWMWA_SYSTEMBACKDROP_TYPE`（Win11 22H2+），旧的 `DWMWA_MICA_EFFECT` 与 Win10 的 `SetWindowCompositionAttribute` 逐级回退，全部失败时留在不透明纸色上；材质生效时内容层铺 `#F0ECEDEF` 半透明纸色，保证正文对比度不随壁纸变化。所有动画都读 `SystemParameters.ClientAreaAnimation`——系统关掉动画即全部退化为瞬时切换。
 
 样本文字只用离屏渲染出的位图，XAML 里不会出现 `FontFamily` 绑定（见下节），因此界面字体与字体列表渲染互不影响。
 
 ## 核心设计约束
 
+这些约束来自一次踩坑记录，每条都对应一个真实的崩溃、卡顿或内存事故。
+
 | 问题 | 方案 | 代码位置 |
 | --- | --- | --- |
 | 绑定 `FontFamily` 会让 WPF 加载并常驻上千套字形，内存暴涨 | XAML 里**禁止**出现 `FontFamily` 绑定；改用 `FormattedText` + `RenderTargetBitmap` 在独立 STA 线程离屏出图，缓存为冻结的 `BitmapSource` | `Services/FontRenderCache.cs`、`Converters/FontToImageConverter.cs` |
-| 上万个字体逐一解析会卡住界面 | 先同步读注册表立即出列表，再后台异步补全本地化名；补名走直读 sfnt 表，约 0.44 ms/文件 | `Services/FontScanner.cs`、`Helpers/FontMetadataReader.cs` |
-| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling` + `CacheLength=1,1`；只有被选中的行才请求大样本，滚动过的小样本按 96 MB 字节预算做 LRU 淘汰 | `Views/MainWindow.xaml` |
-| 输入每个字符都过滤一次会卡顿 | 300 ms 防抖 + 一次性扫描同时产出结果与计数（`ReplaceAll` 只发一次 Reset）+ 预拼小写 `SearchHaystack` | `ViewModels/MainViewModel.cs` |
-| 安装/卸载字体需要管理员权限，但主程序不该整体提权 | 主进程保持普通权限，`Verb=runas` 拉起同一个 exe 的微进程只做文件与注册表操作 | `Services/ElevationHost.cs` |
-| 注册表里指向不存在文件的条目会让扫描崩溃 | 缺失文件生成占位项（标红、可一键清理），解析失败静默捕获 | `Services/FontScanner.cs` |
-| 用户没装 .NET 8 时双击 exe 毫无反应 | 入口是 .NET Framework 4.8 引导器（Win10 1803+ 自带），先检测桌面运行时，缺了就弹框并给出下载链接 | `src/FindFont.Launcher/Program.cs` |
+| 上千个字体逐一解析会卡住界面 | 先同步读注册表立即出列表，再后台异步补全本地化名；补名直读 sfnt 表，约 0.44 ms/文件 | `Services/FontScanner.cs`、`Helpers/FontMetadataReader.cs` |
+| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling` + `CacheLength=1,1`；**只有被选中的行才请求大样本**，小样本按 96 MB 字节预算做 LRU 淘汰 | `Views/MainWindow.xaml`、`Themes/Templates.xaml` |
+| 输入每个字符都过滤一次会卡顿 | 300 ms 防抖 + 单遍扫描同时产出结果与四个分类计数（`ReplaceAll` 只发一次 Reset）+ 预拼小写 `SearchHaystack` | `ViewModels/MainViewModel.cs` |
+| 安装/卸载需要管理员权限，但主程序不该整体提权 | 主进程普通权限，`Verb=runas` 拉起同一个 exe 的微进程只做文件与注册表操作 | `Services/ElevationHost.cs` |
+| 注册表指向不存在文件的条目会让扫描崩溃 | 缺失文件生成占位项（品红标记、可一键清理），解析失败静默捕获 | `Services/FontScanner.cs` |
+| 用户没装 .NET 8 时双击 exe 毫无反应 | 入口是 .NET Framework 4.8 引导器（Win10 1803+ 自带），缺运行时弹框给链接 | `src/FindFont.Launcher/Program.cs` |
+| 动效写在 XAML 里，用户关了系统动画却还在播 | 全部时长从 `Helpers/Motion.cs` 取，读 `SystemParameters.ClientAreaAnimation`，关闭时返回 `TimeSpan.Zero` | `Helpers/Motion.cs` |
+
+更多取舍（为什么直读 sfnt 而不是 `GlyphTypeface`、为什么用 `Motion.Hold` 而不是 `FillBehavior.Stop`）写在 `.docs/PLAN.md`。
+
+## 架构
+
+```
+     ┌────────────────┐  注册表（HKLM/HKCU × 32/64）
+     │  FontScanner   │──────────────┐
+     └────────────────┘              │ 同步：立即出列表
+              │ 异步                    ▼
+              │                 ┌──────────────────┐
+     ┌────────▼────────┐        │  MainViewModel   │
+     │ FontMetadata-   │        │  搜索/筛选/多选   │
+     │ Reader（sfnt）  │───────▶│  分类计数/档案    │
+     └─────────────────┘  补名   └────────┬─────────┘
+                                          │ 请求位图
+                                  ┌───────▼─────────┐
+                                  │ FontRenderCache │
+                                  │  STA 渲染线程    │
+                                  │  LRU + 字节预算  │
+                                  └───────┬─────────┘
+                                          │ 冻结 BitmapSource
+                                  ┌───────▼─────────┐
+                                  │  Image（XAML）   │
+                                  └─────────────────┘
+```
+
+技术栈：C# 12 / .NET 8 / WPF / MVVM（`CommunityToolkit.Mvvm`）/ 无第三方 UI 库。
+
+写入路径（安装、卸载、清理）不走上述链路，而是 `FontInstaller` → `ElevationHost` → `runas` 起同一个 exe 带 `--install-font` 之类参数运行 → 主程序在 `App.OnStartup` 里识别到操作请求就执行并立即退出。这样提权面被压缩到一个只做文件与注册表操作的分支。
 
 ## 构建
 
@@ -60,17 +151,10 @@ tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，�
 
 ```bat
 build.cmd          :: 编译
-build.cmd test     :: 跑冒烟测试（扫描真实系统字体并实际渲染一张位图）
+build.cmd test     :: 跑冒烟测试（扫描真实系统字体并实际渲染位图）
 build.cmd run      :: 直接启动
 build.cmd publish  :: 发布到 publish\ 并打包 dist\find-font-<version>-win-x64.zip
 ```
-
-`publish\` 里有两个可执行文件：
-
-| 文件 | 说明 |
-| --- | --- |
-| `FindFont.exe` | 双击入口，.NET Framework 4.8 引导器（约 7 KB），先检查运行时再启动主程序 |
-| `FindFont.App.exe` | 主程序，框架依赖单文件（约 370 KB） |
 
 手动构建等价于：
 
@@ -81,75 +165,71 @@ set DOTNET_CLI_HOME=%~dp0.build\home
 dotnet build FindFont.slnx -c Debug
 ```
 
-`build.cmd` 本身必须是纯 ASCII：`cmd.exe` 用 OEM 代码页解析批处理，UTF-8 中文注释会被拆成乱码命令。
+`build.cmd` 本身必须是纯 ASCII：`cmd.exe` 用 OEM 代码页解析批处理，UTF-8 中文注释会被拆成乱码命令，进而让 `%TEMP%` 重定向失效。
 
 ## 项目结构
 
 ```
 src/FindFont.Launcher/           .NET Framework 4.8 引导器（运行时检测 + 启动 FindFont.App.exe）
 src/FindFont.App/
-  Models/FontItem.cs              字体条目模型（含 DedupKey、BestName 回退链、小样本/大样本两个位图槽位）
-  Models/FacetItem.cs             左栏分类索引行（名称固定、计数可就地更新）
+  Models/FontItem.cs              字体条目（BestName 回退链、SearchHaystack、小/大样本两个位图槽）
+  Models/FacetItem.cs             左栏分类索引行（名称固定、计数就地更新）
+  Collections/RangeObservableCollection.cs   整批替换只发一次 Reset
   Helpers/NativeMethods.cs        AddFontResourceEx / RemoveFontResourceEx / WM_FONTCHANGE 广播
-  Helpers/FontMetadataReader.cs   直读 sfnt 的 name/OS/2/head 表取家族名、本地化名、字重、斜体（GlyphTypeface 仅作回退）
-  Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属（计划书 6A，不解析字符表）
+  Helpers/FontMetadataReader.cs   直读 sfnt 的 name/OS/2/head 表（GlyphTypeface 仅作回退）
+  Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属，不解析字符表
+  Helpers/Motion.cs               三档时长 + 遵循系统动画开关
+  Helpers/WindowBackdrop.cs       Mica / Acrylic / 降级，三级回退
   Services/FontScanner.cs         注册表扫描 + 缺失文件占位 + 异步补全
-  Services/FontRenderCache.cs     STA 渲染线程 + LRU 位图缓存 + 占位图降级
-  Services/FontInstaller.cs       安装 / 卸载 / 清理异常（仅提权进程执行）
+  Services/FontRenderCache.cs     STA 渲染线程 + 字节预算 LRU + 并发去重 + 过期请求丢弃
+  Services/FontInstaller.cs       安装 / 卸载 / 清理失效登记（仅提权进程执行）
   Services/ElevationHost.cs       --install-font 等参数协议的微进程宿主
   Converters/                     FontToImage（MultiBinding → BitmapSource）、可见性转换器
   Themes/Tokens.xaml              色板、字体、尺寸常量（唯一配色来源）
-  Themes/Controls.xaml            发丝线、文本框、按钮、索引行、样本行、档案区样式
-  ViewModels/MainViewModel.cs     扫描、防抖搜索、筛选、多选、分类计数、档案面板、安装卸载
+  Themes/Controls.xaml            发丝线、输入框、按钮、索引行、样本行、档案区样式
+  Themes/Templates.xaml           样本行模板（行高动画 + 双图交叉淡化）
+  Themes/Scrollbars.xaml          4px 细滚动条
+  ViewModels/MainViewModel.cs     扫描、防抖搜索、筛选、多选、分类计数、档案、安装卸载
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
   Views/MainWindow.xaml(.cs)      主窗口
   Views/CompareWindow.xaml(.cs)   对比窗口
 tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试
 ```
 
-## 冒烟测试覆盖
+## 测试
 
 ```bat
 build.cmd test
 ```
 
-1. `LanguageInference` 关键词推断（中文 / 日文 / 韩文 / 西文 / 空名）
+测试直接跑真实字体库，不 mock：扫描本机注册表、遍历全部字体文件、实际渲染位图。失败时返回非零退出码，CI 据此拦截。
+
+1. `LanguageInference` 关键词推断（中 / 日 / 韩 / 西文 / 空名）
 2. `FontMetadataReader.ContainsCjk` 的 CJK 判定与 null 安全
 3. `FontItem.BestName` 三级回退与 `DedupKey` 大小写不敏感
-4. 真实扫描本机注册表（断言字体数 > 0，字段非空）
+4. 真实扫描本机注册表（断言字体数 > 0、字段非空）
 5. `EnhanceAsync` 抽样补全，断言字重被回填；旧式 `.fon` 不得误判为异常
-6. `FontMetadataReader.TryRead` 遍历本机全部字体文件，断言 sfnt 直读覆盖率 100%（不退回 `GlyphTypeface` 慢路径），并抽样核对 SimSun / Arial / 微软雅黑的家族名与中文名
+6. sfnt 直读覆盖率 100%（不退回 `GlyphTypeface` 慢路径），抽样核对 SimSun / Arial / 微软雅黑的家族名与中文名
 7. `FontRenderCache` 实际出图，断言尺寸 > 0、已 `Freeze`、二次请求命中缓存
 8. `MainViewModel` 真实加载后验证搜索、分类筛选、风格筛选与清空恢复
-9. 1 万条字体的压测：装载、搜索、筛选、清空恢复各自的耗时上限（搜索/筛选 < 500 ms）
+9. 1 万条字体的压测：装载、搜索、筛选、清空恢复各自的耗时上限
 10. `CompareViewModel` 最多三栏上限与移除后栏数变化
-11. 界面资源与主窗口可构造：主题字典已合并、`MainWindow`/`CompareWindow` 能实例化、分类索引行的计数与选中分类下的可见项数一致，且画布不小于 1600×1000
-12. 动效助手遵循系统设置：`Motion.Evaluate(true/false)` 的返回值与三档时长排序
+11. 界面资源与主窗口可构造，分类索引行计数与选中分类下的可见项数一致，画布不小于 1600×1000
+12. 动效助手遵循系统设置：`Motion.Evaluate(true/false)` 返回值与三档时长排序
 13. 窗口材质回退不抛异常：`WindowBackdrop.Apply` 在任意系统版本上都返回合法档位
-14. 尺寸与模板资源：默认画布、最小时宽的断言与模板键的存在性
+14. 尺寸与模板资源：默认画布、最小时宽、模板键存在性
 15. 版本号来自 `version.txt`：程序集元数据、`AppInfo.DisplayVersion`、视图模型三处一致
 16. 位图缓存受字节预算约束：塞入超预算的大图后总量回落到预算内
 17. 同键并发请求只渲染一次：10 个并发请求共用同一张图
-18. 未选中的行不渲染大图：构造样本行时不触发 220px 大样本渲染，选中后才出现
-19. `RangeObservableCollection` 只发一次 Reset：整批替换不产生逐条通知
+18. 未选中的行不渲染大图：构造样本行不触发 220px 渲染，选中后才出现
+19. `RangeObservableCollection` 只发一次 Reset
 20. 搜索快路径与原多字段匹配等价：200 个真实字体 × 6 组查询串逐一比对
 
 当前全部通过（20 项）。
 
-## 使用说明
-
-- **搜索**：输入任意语言、任意大小写，匹配显示名 / 本地化名 / 中文名 / 家族名 / 文件名 / 样式名。
-- **筛选**：左栏「分类」列出全部 / 中文 / 西文 / 其他及各自数量；「风格」是四个方块开关（全部 / 常规 / 粗体 / 斜体，互斥）；「只看失效登记」把范围收窄到注册表里指向已删除文件的条目。
-- **看细节**：单击任意一行，该行展开成 220px 的大样本，右侧「档案」面板列出家族、本地化名、样式、字重、文件、路径、语言与状态。
-- **对比选中**：按住 Ctrl 选 1–3 个字体后点「对比选中」，或直接双击某一行。对比窗口里改文字会立刻重渲染所有栏位。
-- **从文件安装**：选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃操作，不会留下半成品。
-- **卸载字体**：对选中项执行，同样要 UAC。
-- **清理失效登记**：只删除注册表中指向缺失文件的登记项，**不会删除任何字体文件**。
-- **快捷键**：`Ctrl+F` 聚焦搜索框，`Esc` 清空搜索（再按一次取消选中），`Enter` 打开选中项的对比窗口。
-
 ## 性能基线
 
-本机（1333 个已装字体、1329 个不同字体文件）实测：
+本机（Windows 11 26H2、1333 个已装字体、1329 个不同字体文件）实测：
 
 | 场景 | 耗时 |
 | --- | --- |
@@ -157,15 +237,41 @@ build.cmd test
 | 全量补全文件名（直读 sfnt） | 约 580 ms（0.44 ms/文件） |
 | 1 万条字体的搜索 / 筛选 / 清空恢复 | 各约 1 ms |
 | 单个样本行首帧渲染（1120×92） | 约 5 ms |
-| 滚动时新增一屏的渲染量 | 只有可视区内的行，且只渲染小样本 |
 | 内存占用（1333 个字体、可视区渲染完） | 约 160 MB，位图缓存上限 96 MB |
 
-滚动性能的关键是「只有被选中的行才渲染大样本」：早期版本里每个行模板都会在实例化时对 `LargeSample` 求值，滚过一行就多渲染一张 1500×220 的大图。现在大样本改由视图模型的 `RequestLargePreviews` 按选中集合主动请求，行模板只绑 `PreviewBitmapLarge` 属性。
+滚动性能的关键是「只有被选中的行才渲染大样本」：早期版本里每个行模板都在实例化时对 `LargeSample` 求值，滚过一行就多渲染一张 1500×220 的大图。现在大样本改由视图模型的 `RequestLargePreviews` 按选中集合主动请求，行模板只绑 `PreviewBitmapLarge` 属性。
+
+## 版本与发布
+
+版本号只写在仓库根的 `version.txt` 一处。`Directory.Build.props` 把它读成 `Version`，所以程序集元数据、窗口标题行、`dist/find-font-<version>-win-x64.zip` 的命名、CI 的打包与校验全都来自同一个值。
+
+发一个新版本是三步：
+
+```bash
+echo 0.3.0-alpha > version.txt                        # 1. 改版本号
+git commit -am "release: 0.3.0-alpha"                 # 2. 提交
+git tag v0.3.0-alpha && git push origin main --tags   # 3. 打新 tag
+```
+
+tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，不一致直接失败，避免「新 tag 顶着旧版本号发出去」。每个版本用独立的新 tag——不要删掉旧 tag 再重建：复用同一个 tag 会让 Release 页面一直显示同一个版本号，也让「这次究竟改了什么」无法追溯。
 
 ## 已知限制
 
 - 语言归属靠名字关键词推断，未解析字体二进制字符表，因此某些冷门字体会被归到「其他」。
-- 旧式 `.fon` 位图字体不是 sfnt 容器，无法读取家族名，列表里会以文件名做显示名。
-- `.ttc/.otc` 字体集合只读取第一个字体，同集合中的其余成员不会单独列出。注册表若用不同名字登记同一文件的多个字面，列表会把它们保留成多条（宁可多列也不丢掉真实字面）。
+- 旧式 `.fon` 位图字体不是 sfnt 容器，无法读取家族名，列表里以文件名做显示名（不标记为异常）。
+- `.ttc/.otc` 字体集合只读取第一个字体，同集合中的其余成员不会单独列出。注册表若用不同名字登记同一文件的多个字面，列表会保留成多条——宁可多列，也不丢掉真实字面。
 - 注册表扫描只覆盖 `HKLM`/`HKCU` 的 `Windows NT\CurrentVersion\Fonts`，不处理通过 GDI 私有加载的临时字体。
-- 主程序是框架依赖单文件（约 370 KB），依赖目标机已安装 .NET 8 桌面运行时；缺失时由引导器提示并给出下载链接。
+- 主程序是框架依赖单文件，依赖目标机已装 .NET 8 桌面运行时；缺失时由引导器提示并给出下载链接。
+
+## 贡献
+
+欢迎提 Issue 与 PR。提交前请确认：
+
+1. `build.cmd test` 全绿（测试跑的是真实系统字体，本机数字与 CI 会不同，断言只看覆盖率与等价性，不看绝对耗时）。
+2. XAML 里没有新增 `FontFamily` 绑定——这是这套架构的地基。
+3. 长耗时操作是异步的，`ObservableCollection` 只在 UI 线程改。
+4. 单个文件尽量控制在 300 行内，视图逻辑放视图模型。
+
+## 许可
+
+[MIT](LICENSE) © 2026 DHA404

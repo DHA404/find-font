@@ -48,7 +48,8 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | **分类与风格筛选** | 全部 / 中文 / 西文 / 其他，全部 / 常规 / 粗体 / 斜体，计数随筛选实时刷新 |
 | **多字体对比** | 按住 Ctrl 选 1–3 个字体同屏对照，改对比文字立刻重渲染 |
 | **自定义样本文字** | 顶部输入框改一次，整个列表与对比窗口同步 |
-| **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程 |
+| **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程；**卸载时只删本工具装过的文件**（进回收站），系统自带字体只清登记 |
+| **拒装网页字体** | `.woff/.woff2/.eot` 是浏览器格式，装进系统目录也看不见，直接明说拒绝原因而不是假装成功 |
 | **失效登记清理** | 删除注册表里指向缺失文件的条目，**不删除任何字体文件** |
 | **键盘优先** | `Ctrl+F` 搜索、`Esc` 逐层退出、`Enter` 直接对比 |
 
@@ -82,8 +83,8 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | 对比 | 按住 `Ctrl` 选 1–3 个字体后点「对比选中」，或直接双击某一行 |
 | 改样本 | 顶部「样本文字」框，全局生效 |
 | 换字号 | 右上角字号下拉（20–88） |
-| 安装 | 「从文件安装」选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃，不留半成品 |
-| 卸载 | 选中后点「卸载字体」，同样走 UAC |
+| 安装 | 「从文件安装」选 `.ttf/.otf/.ttc/.otc`，会弹 UAC；取消 UAC 视为放弃，不留半成品。选到 `.woff/.woff2/.eot` 会被直接拒绝并说明原因 |
+| 卸载 | 选中后点「卸载字体」，同样走 UAC。本工具装过的文件进回收站；系统自带字体**只清除登记、不删除文件**，确认框会写清是哪一种 |
 | 清理 | 「清理失效登记」只删注册表项 |
 | 退出搜索 | `Esc` 清空搜索词，再按一次取消选中 |
 | 对比窗口 | `Enter`，或双击列表行 |
@@ -112,6 +113,7 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | 输入每个字符都过滤一次会卡顿 | 300 ms 防抖 + 单遍扫描同时产出结果与四个分类计数（`ReplaceAll` 只发一次 Reset）+ 预拼小写 `SearchHaystack` | `ViewModels/MainViewModel.cs` |
 | 安装/卸载需要管理员权限，但主程序不该整体提权 | 主进程普通权限，`Verb=runas` 拉起同一个 exe 的微进程只做文件与注册表操作 | `Services/ElevationHost.cs` |
 | 注册表指向不存在文件的条目会让扫描崩溃 | 缺失文件生成占位项（品红标记、可一键清理），解析失败静默捕获 | `Services/FontScanner.cs` |
+| 卸载若直接删文件会误删系统自带字体 | 维护一份「本工具装过什么」的台账（`%ProgramData%\find-font\installed.txt`），台账里没有的文件一律只清登记；删除走回收站，回收站不可用就报错而不是硬删 | `Services/FontInstaller.cs` |
 | 用户没装 .NET 8 时双击 exe 毫无反应 | 入口是 .NET Framework 4.8 引导器（Win10 1803+ 自带），缺运行时弹框给链接 | `src/FindFont.Launcher/Program.cs` |
 | 动效写在 XAML 里，用户关了系统动画却还在播 | 全部时长从 `Helpers/Motion.cs` 取，读 `SystemParameters.ClientAreaAnimation`，关闭时返回 `TimeSpan.Zero` | `Helpers/Motion.cs` |
 
@@ -170,6 +172,7 @@ dotnet build FindFont.slnx -c Debug
 ## 项目结构
 
 ```
+assets/find-font.ico             应用图标（16–256 七档，两个 exe 共用）
 src/FindFont.Launcher/           .NET Framework 4.8 引导器（运行时检测 + 启动 FindFont.App.exe）
 src/FindFont.App/
   Models/FontItem.cs              字体条目（BestName 回退链、SearchHaystack、小/大样本两个位图槽）
@@ -224,8 +227,11 @@ build.cmd test
 18. 未选中的行不渲染大图：构造样本行不触发 220px 渲染，选中后才出现
 19. `RangeObservableCollection` 只发一次 Reset
 20. 搜索快路径与原多字段匹配等价：200 个真实字体 × 6 组查询串逐一比对
+21. 卸载不删系统字体文件：未经本工具安装的文件一律不算托管，只清登记
+22. 网页字体（WOFF）明确拒装：`.woff/.woff2/.eot` 在碰系统目录之前就被拒绝，且文件未被复制
+23. 字体注册表值名格式正确：`.ttc` 用「(TrueType collection)」、`.otf` 用「(OpenType)」，后缀不重复
 
-当前全部通过（20 项）。
+当前全部通过（23 项）。
 
 ## 性能基线
 

@@ -42,6 +42,8 @@ dotnet publish src\FindFont.App\FindFont.App.csproj -c Release -o publish || exi
 rem 2) launcher: .NET Framework 4.8 bootstrapper -> publish\FindFont.exe (double-click entry)
 dotnet build src\FindFont.Launcher\FindFont.Launcher.csproj -c Release || exit /b 1
 copy /y "src\FindFont.Launcher\bin\Release\net48\FindFont.exe" "publish\FindFont.exe" >nul || exit /b 1
+rem 2b) symbol files are useless to end users: they nearly double the archive size
+del /q "publish\*.pdb" 2>nul
 echo Publish output: %CD%\publish  (entry: FindFont.exe)
 rem 3) portable zip for distribution (version comes from version.txt)
 if not exist "dist" mkdir "dist"

@@ -126,7 +126,7 @@ public sealed class FontScanner
             "Microsoft", "Windows", "Fonts");
         if (Directory.Exists(userFontDir))
         {
-            foreach (var file in SafeEnumerate(userFontDir, "*.ttf", "*.otf", "*.ttc", "*.otc", "*.woff", "*.woff2"))
+            foreach (var file in SafeEnumerate(userFontDir, "*.ttf", "*.otf", "*.ttc", "*.otc"))
             {
                 if (byPath.ContainsKey(file)) continue;
 

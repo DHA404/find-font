@@ -76,6 +76,7 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasSelection => SelectedFonts.Count > 0;
     public bool CanCompare => SelectedFonts.Count >= 2;
+    /// <summary>可卸载 = 单选 + 不是坏项。系统字体也允许（只清登记、保留文件），由命令层给出不同提示。</summary>
     public bool CanUninstall => SelectedFonts.Count == 1 && !SelectedFonts[0].IsBroken;
 
     /// <summary>对比按钮的可用条件：至少选中 1 个（单字体也允许放大看）。</summary>
@@ -430,7 +431,9 @@ public partial class MainViewModel : ObservableObject
         ColophonLanguage = hasCjk ? "中文 / 东亚字符" : "西文";
         ColophonStatus = item.IsBroken
             ? $"异常   {item.StatusMessage}"
-            : string.IsNullOrWhiteSpace(item.StatusMessage) ? "正常" : item.StatusMessage;
+            : item.IsSystemFont
+                ? "系统字体（可清登记，不删文件）"
+                : string.IsNullOrWhiteSpace(item.StatusMessage) ? "正常" : item.StatusMessage;
     }
 
     private void ClearColophon()
@@ -492,9 +495,26 @@ public partial class MainViewModel : ObservableObject
 
         if (dialog.ShowDialog() != true) return;
 
+        // 用户可能通过「所有文件」选了 WOFF 之类的网页字体。这类文件装进去
+        // 系统也认不出来，必须先拦下来并说清原因，而不是假装装成功。
+        var accepted = new List<string>();
+        var refusals = new List<string>();
+        foreach (var file in dialog.FileNames)
+        {
+            if (FontInstaller.IsSupportedFontFile(file)) accepted.Add(file);
+            else refusals.Add(FontInstaller.DescribeInstallRefusal(file));
+        }
+
+        if (accepted.Count == 0)
+        {
+            StatusText = string.Join(" ", refusals);
+            return;
+        }
+
         StatusText = "正在请求管理员权限安装字体…";
-        var result = await FontInstaller.InstallAsync(dialog.FileNames);
-        StatusText = result.WasCancelled ? "已取消安装" : result.Log.Trim();
+        var result = await FontInstaller.InstallAsync(accepted);
+        var log = result.WasCancelled ? "已取消安装" : result.Log.Trim();
+        StatusText = refusals.Count == 0 ? log : $"{log}　（跳过 {refusals.Count} 个不支持的文件）";
 
         if (result.Success) await LoadAsync();
     }
@@ -509,15 +529,22 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        var managed = FontInstaller.IsManagedInstall(target.FullPath);
+
+        // 系统自带字体 / 用户手工放进来的字体：只允许清除登记，绝不动文件。
+        var detail = managed
+            ? $"将从系统字体目录移除文件（进回收站）：\n{target.FileName}"
+            : $"这是系统自带或非本工具安装的字体。\n只会清除它的字体登记，不会删除文件。\n\n文件：{target.FileName}";
+
         var confirm = System.Windows.MessageBox.Show(
-            $"确定要卸载字体“{target.BestName}”吗？\n文件：{target.FileName}",
+            $"确定要卸载字体“{target.BestName}”吗？\n\n{detail}",
             "卸载字体",
             System.Windows.MessageBoxButton.YesNo,
             System.Windows.MessageBoxImage.Warning);
 
         if (confirm != System.Windows.MessageBoxResult.Yes) return;
 
-        StatusText = "正在请求管理员权限卸载字体…";
+        StatusText = $"正在请求管理员权限卸载 {target.FileName}…";
         var result = await FontInstaller.UninstallAsync(new[] { $"{target.BestName}|{target.FullPath}" });
         StatusText = result.WasCancelled ? "已取消卸载" : result.Log.Trim();
 

@@ -11,7 +11,7 @@
     <RootNamespace>FindFont.Launcher</RootNamespace>
     <PlatformTarget>x64</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <ApplicationIcon />
+    <ApplicationIcon>..\..\assets\find-font.ico</ApplicationIcon>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
 

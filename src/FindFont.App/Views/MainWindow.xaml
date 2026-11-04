@@ -159,8 +159,14 @@
                         <Button Content="重新扫描" Style="{StaticResource QuietButton}"
                                 Command="{Binding RefreshCommand}"
                                 HorizontalAlignment="Stretch" Margin="8,0" />
+                        <Button Content="关于 / 环境信息" Style="{StaticResource QuietButton}"
+                                Command="{Binding ShowAboutCommand}"
+                                HorizontalAlignment="Stretch" Margin="8,0" />
                         <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}" TextWrapping="Wrap"
                                    Foreground="{StaticResource InkMuted}" Margin="8,12,8,0" />
+                        <Button Content="打开日志" Style="{StaticResource QuietButton}"
+                                Command="{Binding OpenLogFolderCommand}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0" Padding="8,4" />
                     </StackPanel>
                 </Grid>
             </Border>

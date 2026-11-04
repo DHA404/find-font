@@ -44,6 +44,27 @@ jobs:
       - name: Smoke tests
         run: dotnet run --project tests/FindFont.SmokeTests/FindFont.SmokeTests.csproj -c Release --no-build
 
+      # 单文件 300 行是写在 PLAN 里的协作规约，光靠人盯会慢慢失守，交给 CI。
+      - name: Enforce 300-line rule
+        shell: pwsh
+        run: |
+          $limit = 300
+          $bad = @()
+          foreach ($root in @('src', 'tests')) {
+            Get-ChildItem $root -Recurse -Include *.cs, *.xaml -File |
+              Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' } |
+              ForEach-Object {
+                $count = (Get-Content $_.FullName).Count
+                if ($count -gt $limit) { $bad += "$($_.FullName): $count lines" }
+              }
+          }
+          if ($bad.Count -gt 0) {
+            $bad | ForEach-Object { Write-Host "too long: $_" }
+            Write-Error "$($bad.Count) 个文件超过 $limit 行，请拆分后再提交"
+            exit 1
+          }
+          Write-Host "所有源文件都在 $limit 行以内"
+
       - name: Publish app
         run: dotnet publish src/FindFont.App/FindFont.App.csproj -c Release -o publish
 

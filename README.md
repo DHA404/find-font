@@ -51,6 +51,10 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程；**卸载时只删本工具装过的文件**（进回收站），系统自带字体只清登记 |
 | **拒装网页字体** | `.woff/.woff2/.eot` 是浏览器格式，装进系统目录也看不见，直接明说拒绝原因而不是假装成功 |
 | **失效登记清理** | 删除注册表里指向缺失文件的条目，**不删除任何字体文件** |
+| **单实例** | 重复双击不会开出第二个窗口，而是把已有窗口叫到前台 |
+| **记忆上次状态** | 窗口位置 / 大小 / 上次搜索词 / 样本文字 / 字号 / 分类 / 风格都记在 `%LOCALAPPDATA%\find-font\settings.json` |
+| **高分屏清晰** | 声明 PerMonitorV2 DPI 感知，位图按屏幕真实 DPI 渲染（100% / 150% / 200% 物理尺寸一致） |
+| **出问题有据可查** | 未处理异常自动落盘到 `%LOCALAPPDATA%\find-font\logs`，保留 7 天；「关于」里一键复制环境信息 |
 | **键盘优先** | `Ctrl+F` 搜索、`Esc` 逐层退出、`Enter` 直接对比 |
 
 ## 快速开始
@@ -116,6 +120,10 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | 卸载若直接删文件会误删系统自带字体 | 维护一份「本工具装过什么」的台账（`%ProgramData%\find-font\installed.txt`），台账里没有的文件一律只清登记；删除走回收站，回收站不可用就报错而不是硬删 | `Services/FontInstaller.cs` |
 | 用户没装 .NET 8 时双击 exe 毫无反应 | 入口是 .NET Framework 4.8 引导器（Win10 1803+ 自带），缺运行时弹框给链接 | `src/FindFont.Launcher/Program.cs` |
 | 动效写在 XAML 里，用户关了系统动画却还在播 | 全部时长从 `Helpers/Motion.cs` 取，读 `SystemParameters.ClientAreaAnimation`，关闭时返回 `TimeSpan.Zero` | `Helpers/Motion.cs` |
+| 重复双击会开出两个窗口、各自扫一遍注册表 | 全局命名互斥体 + `EnumWindows` 找已有窗口叫到前台；拿不到互斥体时降级为允许启动，绝不让程序打不开 | `Helpers/SingleInstance.cs` |
+| 窗口大小、搜索词每次重启都丢 | `System.Text.Json` 存 `%LOCALAPPDATA%\find-font\settings.json`，变更后 500 ms 合并写；先写 `.tmp` 再原子替换，避免断电留半截 JSON | `Services/AppSettings.cs` |
+| 高分屏上样本偏小发虚 | `app.manifest` 声明 PerMonitorV2；位图按 `VisualTreeHelper.GetDpi` 的真实 DPI 渲染，**DPI 进缓存键**，跨屏拖动不会命中旧 DPI 的模糊图 | `app.manifest`、`Services/RenderDpi.cs` |
+| 崩溃后用户什么都说不清 | 未处理异常统一落盘到 `%LOCALAPPDATA%\find-font\logs`（不可写则依次退到 `%TEMP%`），保留 7 天；「关于」一键复制环境信息 | `Helpers/Diagnostics.cs` |
 
 更多取舍（为什么直读 sfnt 而不是 `GlyphTypeface`、为什么用 `Motion.Hold` 而不是 `FillBehavior.Stop`）写在 `.docs/PLAN.md`。
 
@@ -175,28 +183,43 @@ dotnet build FindFont.slnx -c Debug
 assets/find-font.ico             应用图标（16–256 七档，两个 exe 共用）
 src/FindFont.Launcher/           .NET Framework 4.8 引导器（运行时检测 + 启动 FindFont.App.exe）
 src/FindFont.App/
-  Models/FontItem.cs              字体条目（BestName 回退链、SearchHaystack、小/大样本两个位图槽）
-  Models/FacetItem.cs             左栏分类索引行（名称固定、计数就地更新）
+  app.manifest                     PerMonitorV2 DPI 感知、longPathAware、最高支持的 OS
+  Models/FontItem.cs               字体条目（BestName 回退链、SearchHaystack、小/大样本两个位图槽）
+  Models/FacetItem.cs              左栏分类索引行（名称固定、计数就地更新）
   Collections/RangeObservableCollection.cs   整批替换只发一次 Reset
-  Helpers/NativeMethods.cs        AddFontResourceEx / RemoveFontResourceEx / WM_FONTCHANGE 广播
-  Helpers/FontMetadataReader.cs   直读 sfnt 的 name/OS/2/head 表（GlyphTypeface 仅作回退）
+  Helpers/NativeMethods.cs         AddFontResourceEx / RemoveFontResourceEx / WM_FONTCHANGE 广播
+  Helpers/FontMetadataReader.cs   字体元数据入口（sfnt 优先，GlyphTypeface 回退）
+  Helpers/SfntReader.cs           sfnt/ttcf 容器、表目录、big-endian tag
+  Helpers/NameTableParser.cs      name 表记录与本地化名评分
   Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属，不解析字符表
   Helpers/Motion.cs               三档时长 + 遵循系统动画开关
   Helpers/WindowBackdrop.cs       Mica / Acrylic / 降级，三级回退
+  Helpers/SingleInstance.cs       命名互斥体 + 唤起已有窗口
+  Helpers/Diagnostics.cs          崩溃日志（可写目录回退链、保留 7 天）
   Services/FontScanner.cs         注册表扫描 + 缺失文件占位 + 异步补全
+  Services/FontRegistryReader.cs  读 HKLM/HKCU × 32/64 的四种字体注册表视图
+  Services/FontDeduplicator.cs    同文件同家族的合并规则
   Services/FontRenderCache.cs     STA 渲染线程 + 字节预算 LRU + 并发去重 + 过期请求丢弃
+  Services/FontRenderCache.Rendering.cs   FormattedText / RenderTargetBitmap / Typeface 缓存
   Services/FontInstaller.cs       安装 / 卸载 / 清理失效登记（仅提权进程执行）
+  Services/FontInstaller.Registry.cs     注册表值名与读写
   Services/ElevationHost.cs       --install-font 等参数协议的微进程宿主
+  Services/AppSettings.cs         settings.json 读写、窗口几何、屏幕可见性校验
+  Services/RenderDpi.cs           当前监视器 DPI 的来源
   Converters/                     FontToImage（MultiBinding → BitmapSource）、可见性转换器
   Themes/Tokens.xaml              色板、字体、尺寸常量（唯一配色来源）
-  Themes/Controls.xaml            发丝线、输入框、按钮、索引行、样本行、档案区样式
+  Themes/Controls.xaml            聚合器：Inputs / Buttons / Rows 三份
   Themes/Templates.xaml           样本行模板（行高动画 + 双图交叉淡化）
   Themes/Scrollbars.xaml          4px 细滚动条
-  ViewModels/MainViewModel.cs     扫描、防抖搜索、筛选、多选、分类计数、档案、安装卸载
+  ViewModels/MainViewModel.cs     状态字段、集合、计算属性
+  ViewModels/MainViewModel.Filtering.cs   扫描加载、防抖搜索、筛选、分类计数
+  ViewModels/MainViewModel.Commands.cs    选择、安装、卸载、清理、打开目录
+  ViewModels/MainViewModel.Settings.cs    设置往返、DPI 刷新、关于/日志命令
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
   Views/MainWindow.xaml(.cs)      主窗口
   Views/CompareWindow.xaml(.cs)   对比窗口
-tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试
+  Views/AboutWindow.xaml(.cs)     关于：环境信息一键复制
+tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试（TestRunner + Tests/ 分层）
 ```
 
 ## 测试
@@ -230,8 +253,15 @@ build.cmd test
 21. 卸载不删系统字体文件：未经本工具安装的文件一律不算托管，只清登记
 22. 网页字体（WOFF）明确拒装：`.woff/.woff2/.eot` 在碰系统目录之前就被拒绝，且文件未被复制
 23. 字体注册表值名格式正确：`.ttc` 用「(TrueType collection)」、`.otf` 用「(OpenType)」，后缀不重复
+24. 单实例互斥体只放行一个进程：第二次 `Acquire` 必须识别出已有实例
+25. 设置的默认值与屏幕可见性判断（拔掉显示器后窗口坐标不会被恢复）
+26. 设置经视图模型往返一致：预览文字 / 字号 / 分类 / 风格 / 搜索词
+27. 渲染 DPI 只在合理范围生效：0 / 负数 / NaN / Infinity 一律回落到 96
+28. DPI 参与位图缓存键：同一字体换 DPI 必须拿到另一张图
+29. 崩溃日志落盘且带上下文，且不抛异常
+30. 源文件不超过 300 行（与 CI 里的同名检查互为双保险）
 
-当前全部通过（23 项）。
+当前全部通过（30 项）。
 
 ## 性能基线
 

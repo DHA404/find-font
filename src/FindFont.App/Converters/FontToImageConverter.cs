@@ -67,7 +67,8 @@ public sealed class FontToImageConverter : IMultiValueConverter
             Text: text,
             FontSize: fontSize,
             PixelWidth: width,
-            PixelHeight: height);
+            PixelHeight: height,
+            Dpi: RenderDpi.Current);
 
         // 先尝试同步命中缓存，未命中时立即触发后台渲染并在完成后回填。
         var cached = AppServices.RenderCache.TryGetFromCache(request);

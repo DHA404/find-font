@@ -111,7 +111,8 @@ public partial class FontItem : ObservableObject
             Text: string.IsNullOrEmpty(text) ? " " : text,
             FontSize: fontSize <= 0 ? 28 : fontSize,
             PixelWidth: width,
-            PixelHeight: height);
+            PixelHeight: height,
+            Dpi: RenderDpi.Current);
 
         var cached = AppServices.RenderCache.TryGetFromCache(request);
         if (cached is not null)

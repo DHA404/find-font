@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using FindFont.App.Helpers;
 using FindFont.App.Models;
 
@@ -19,8 +18,6 @@ public sealed record FontScanResult(
 /// </summary>
 public sealed class FontScanner
 {
-    private const string FontsKeyPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts";
-
     private static readonly string[] KnownFontDirs =
     {
         Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
@@ -33,50 +30,10 @@ public sealed class FontScanner
     public FontScanResult Scan()
     {
         var started = DateTime.UtcNow;
-        var items = new List<FontItem>(512);
-        // 同一份字体数据会被登记多次：注册表的 64/32 两个视图各有一份同名项，
-        // 用户字体目录里又躺着一批注册表已登记过的文件。按「家族名 + 样式名」去重
-        // 抓不住这些重复（用户目录那条没有样式名），于是改用文件路径做主键。
-        //
-        // 但路径相同不等于字面相同：.ttc/.otc 一个文件里可能装着多个家族，
-        // 注册表也可能用不同名字登记同一文件的多个字面。所以只有名字一致才合并，
-        // 名字不同就当两个独立条目留下。
-        var byPath = new Dictionary<string, List<FontItem>>(StringComparer.OrdinalIgnoreCase);
+        var dedup = new FontDeduplicator();
 
         int registryEntries = 0;
         int missingFiles = 0;
-
-        void Add(FontItem item)
-        {
-            // 缺失文件的项没有 FullPath，退化成按文件名归组。
-            var key = item.FullPath.Length > 0 ? item.FullPath : "\0missing\0" + item.FileName;
-
-            if (!byPath.TryGetValue(key, out var bucket))
-            {
-                byPath[key] = bucket = new List<FontItem>(1);
-                bucket.Add(item);
-                items.Add(item);
-                return;
-            }
-
-            foreach (var existing in bucket)
-            {
-                if (!string.Equals(existing.FamilyName, item.FamilyName, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // 同名字面：只补全信息，不新增行。
-                if (existing.StyleName.Length == 0 && item.StyleName.Length > 0)
-                {
-                    existing.FamilyName = item.FamilyName;
-                    existing.DisplayName = item.DisplayName;
-                    existing.StyleName = item.StyleName;
-                }
-                return;
-            }
-
-            bucket.Add(item);
-            items.Add(item);
-        }
 
         void AddEntry(string registryName, string? fileName, bool isSystem)
         {
@@ -88,11 +45,11 @@ public sealed class FontScanner
             {
                 missingFiles++;
                 var ghost = CreateBrokenItem(registryName, fileName, isSystem, "字体文件缺失");
-                Add(ghost);
+                dedup.Add(ghost);
                 return;
             }
 
-            var cleanedName = CleanRegistryName(registryName);
+            var cleanedName = FontRegistryReader.CleanRegistryName(registryName);
             var item = new FontItem
             {
                 FamilyName = cleanedName,
@@ -100,23 +57,17 @@ public sealed class FontScanner
                 FileName = Path.GetFileName(path),
                 FullPath = path,
                 IsSystemFont = isSystem,
-                StyleName = GuessStyleFromName(registryName),
+                StyleName = FontRegistryReader.GuessStyleFromName(registryName),
                 StatusMessage = string.Empty,
             };
             item.IsBold = item.Weight >= 600;
             item.Language = LanguageInference.Infer(cleanedName, item.FileName);
             item.Category = LanguageInference.ToCategory(item.Language);
 
-            Add(item);
+            dedup.Add(item);
         }
 
-        foreach (var hive in new[] { RegistryHive.LocalMachine, RegistryHive.CurrentUser })
-        {
-            foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
-            {
-                TryReadHive(hive, view, AddEntry);
-            }
-        }
+        FontRegistryReader.ReadAll(AddEntry);
 
         // 用户级字体目录里可能还有注册表未登记的字体。
         // 注意：这里能拿到的只有文件名，不保证和注册表里的家族名一致，
@@ -128,7 +79,7 @@ public sealed class FontScanner
         {
             foreach (var file in SafeEnumerate(userFontDir, "*.ttf", "*.otf", "*.ttc", "*.otc"))
             {
-                if (byPath.ContainsKey(file)) continue;
+                if (dedup.ContainsPath(file)) continue;
 
                 var name = Path.GetFileNameWithoutExtension(file);
                 var item = new FontItem
@@ -142,10 +93,11 @@ public sealed class FontScanner
                 };
                 item.Language = LanguageInference.Infer(name);
                 item.Category = LanguageInference.ToCategory(item.Language);
-                Add(item);
+                dedup.Add(item);
             }
         }
 
+        var items = dedup.Items;
         items.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase));
 
         return new FontScanResult(
@@ -233,27 +185,6 @@ public sealed class FontScanner
     private static bool IsLegacyBitmapFont(string path)
         => path.EndsWith(".fon", StringComparison.OrdinalIgnoreCase);
 
-    private static void TryReadHive(RegistryHive hive, RegistryView view, Action<string, string?, bool> add)
-    {
-        try
-        {
-            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-            using var key = baseKey.OpenSubKey(FontsKeyPath, writable: false);
-            if (key is null) return;
-
-            var isSystem = hive == RegistryHive.LocalMachine;
-            foreach (var name in key.GetValueNames())
-            {
-                var value = key.GetValue(name) as string;
-                add(name, value, isSystem);
-            }
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.Security.SecurityException)
-        {
-            // 某个注册表视图不可读时忽略，其余视图继续。
-        }
-    }
-
     private static IEnumerable<string> SafeEnumerate(string dir, params string[] patterns)
     {
         foreach (var pattern in patterns)
@@ -304,39 +235,15 @@ public sealed class FontScanner
         return null;
     }
 
-    /// <summary>注册表项名形如 "微软雅黑 &amp; 微软雅黑 Light (TrueType)"，去掉后缀并与 "&amp;" 取首个。</summary>
-    internal static string CleanRegistryName(string registryName)
-    {
-        var name = registryName;
-        var paren = name.IndexOf('(');
-        if (paren > 0) name = name[..paren];
-        name = name.Replace("&", "&").Trim();
-
-        var amp = name.IndexOf('&');
-        if (amp > 0) name = name[..amp].Trim();
-
-        return string.IsNullOrWhiteSpace(name) ? registryName : name;
-    }
-
-    internal static string GuessStyleFromName(string registryName)
-    {
-        var lowered = registryName.ToLowerInvariant();
-        if (lowered.Contains("bold") || lowered.Contains("粗")) return "Bold";
-        if (lowered.Contains("light") || lowered.Contains("细")) return "Light";
-        if (lowered.Contains("italic") || lowered.Contains("斜")) return "Italic";
-        if (lowered.Contains("medium") || lowered.Contains("中等")) return "Medium";
-        return "Regular";
-    }
-
     private static FontItem CreateBrokenItem(string registryName, string fileName, bool isSystem, string reason) => new()
     {
-        FamilyName = CleanRegistryName(registryName),
-        DisplayName = CleanRegistryName(registryName),
+        FamilyName = FontRegistryReader.CleanRegistryName(registryName),
+        DisplayName = FontRegistryReader.CleanRegistryName(registryName),
         FileName = Path.GetFileName(fileName),
         FullPath = string.Empty,
         IsSystemFont = isSystem,
         IsBroken = true,
         StatusMessage = reason,
-        StyleName = GuessStyleFromName(registryName),
+        StyleName = FontRegistryReader.GuessStyleFromName(registryName),
     };
 }

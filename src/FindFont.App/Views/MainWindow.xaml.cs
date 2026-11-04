@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using FindFont.App.Helpers;
 using FindFont.App.Models;
+using FindFont.App.Services;
 using FindFont.App.ViewModels;
 
 namespace FindFont.App.Views;
@@ -29,6 +30,7 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         ViewModel.FilterApplied += OnFilterApplied;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        DpiChanged += OnDpiChanged;
     }
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
@@ -37,6 +39,9 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoaded;
 
+        // 先把 DPI 报给渲染层：高分屏上按 96 出图再被系统拉伸会发虚。
+        RenderDpi.Track(this);
+
         // 窗口入场：整块内容淡入，纸色底已经在，不会闪白。
         if (Motion.Enabled)
         {
@@ -44,8 +49,24 @@ public partial class MainWindow : Window
             PaperLayer.BeginAnimation(OpacityProperty, Motion.Hold(1, Motion.Slow));
         }
 
+        ViewModel.RestoreSettings(AppSettings.Current);
         await ViewModel.LoadAsync();
         _firstLoadDone = true;
+    }
+
+    /// <summary>跨屏拖动改了缩放：更新 DPI 并让所有位图按新 DPI 重出。</summary>
+    private void OnDpiChanged(object sender, DpiChangedEventArgs e)
+    {
+        RenderDpi.Track(this);
+        ViewModel.RefreshDpi();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        ViewModel.PersistSettings(AppSettings.Current);
+        AppSettings.Current.CaptureWindow(this);
+        AppSettings.Current.Save();
+        base.OnClosing(e);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

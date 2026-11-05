@@ -11,9 +11,9 @@ namespace FindFont.App.Services;
 /// </summary>
 public sealed partial class FontRenderCache
 {
-    private BitmapSource RenderCore(RenderRequest request)
+    private BitmapSource RenderCore(RenderRequest request, RenderWorker worker)
     {
-        var typeface = ResolveTypeface(request);
+        var typeface = ResolveTypeface(request, worker);
 
         var dpi = request.Dpi <= 0 ? 96 : request.Dpi;
         var scale = dpi / 96.0;
@@ -59,7 +59,7 @@ public sealed partial class FontRenderCache
     /// 取 Typeface。首次为某文件构造时优先用「文件 URI + #家族名」，
     /// 避开按家族名二次查找系统字体族的开销，也避免同类名撞车。
     /// </summary>
-    private Typeface ResolveTypeface(RenderRequest request)
+    private Typeface ResolveTypeface(RenderRequest request, RenderWorker worker)
     {
         var path = request.FontFilePath;
         var family = string.IsNullOrWhiteSpace(request.FamilyName) ? null : request.FamilyName;
@@ -70,20 +70,25 @@ public sealed partial class FontRenderCache
         // 缓存键：单字体文件用路径；多字面容器用「路径#家族名」区分成员。
         var cacheKey = family is null ? path! : $"{path}#{family}";
 
-        lock (_sync)
-        {
-            if (_typefaces.TryGetValue(cacheKey, out var cached)) return cached ?? fallback;
-        }
+        // Typeface 与 GlyphTypeface 都不是线程安全的（内部持有 COM 对象），
+        // 因此缓存挂在渲染线程自己身上，不进全局字典。
+        if (worker.Typefaces.TryGetValue(cacheKey, out var cached)) return cached ?? fallback;
 
         Typeface? built = null;
 
         if (!string.IsNullOrWhiteSpace(path))
         {
+            // 家族名由扫描阶段读 name 表得到，通常不需要再打开一次文件。
+            // 只有拿不到家族名（比如外部传入的临时请求）才去构造 GlyphTypeface 补，
+            // 那一步会把整个字体文件读进 DirectWrite，是渲染链路里最贵的一次调用。
             var glyphFamily = family;
-            var glyph = ResolveGlyphTypeface(path);
-            if (glyphFamily is null && glyph is not null && glyph.FamilyNames.Count > 0)
+            if (glyphFamily is null)
             {
-                glyphFamily = glyph.FamilyNames.Values.First();
+                var glyph = ResolveGlyphTypeface(path, worker);
+                if (glyph is not null && glyph.FamilyNames.Count > 0)
+                {
+                    glyphFamily = glyph.FamilyNames.Values.First();
+                }
             }
 
             if (glyphFamily is not null)
@@ -106,22 +111,16 @@ public sealed partial class FontRenderCache
             }
         }
 
-        lock (_sync)
-        {
-            _typefaces[cacheKey] = built;
-            return built ?? fallback;
-        }
+        worker.Typefaces[cacheKey] = built;
+        return built ?? fallback;
     }
 
-    private GlyphTypeface? ResolveGlyphTypeface(string? path)
+    private GlyphTypeface? ResolveGlyphTypeface(string? path, RenderWorker worker)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;
 
-        lock (_sync)
-        {
-            if (_glyphs.TryGetValue(path, out var cached)) return cached;
-            if (_invalidGlyphs.ContainsKey(path)) return null;
-        }
+        if (worker.Glyphs.TryGetValue(path, out var known)) return known;
+        if (worker.InvalidGlyphs.ContainsKey(path)) return null;
 
         GlyphTypeface? glyph = null;
         try
@@ -133,17 +132,14 @@ public sealed partial class FontRenderCache
             glyph = null;
         }
 
-        lock (_sync)
+        if (glyph is null)
         {
-            if (glyph is null)
-            {
-                _invalidGlyphs[path] = true;
-                return null;
-            }
-
-            _glyphs[path] = glyph;
-            return glyph;
+            worker.InvalidGlyphs[path] = true;
+            return null;
         }
+
+        worker.Glyphs[path] = glyph;
+        return glyph;
     }
 
     private static CacheKey ToKey(RenderRequest r) =>

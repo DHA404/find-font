@@ -18,6 +18,13 @@
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- 启动优化：单文件默认会在临时目录解压全部程序集再冷 JIT，
+         这两项分别去掉解压等待与首帧的解释执行开销。 -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
   </PropertyGroup>
 
   <ItemGroup>

@@ -35,23 +35,27 @@ public partial class MainWindow : Window
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
 
         // 先把 DPI 报给渲染层：高分屏上按 96 出图再被系统拉伸会发虚。
         RenderDpi.Track(this);
 
-        // 窗口入场：整块内容淡入，纸色底已经在，不会闪白。
+        // 窗口入场：从 0.85 收到 1，只做半拍。整块内容淡出淡入会让用户
+        // 觉得「软件在启动」，而首帧本来就有内容，直接给足更快。
         if (Motion.Enabled)
         {
-            PaperLayer.Opacity = 0;
-            PaperLayer.BeginAnimation(OpacityProperty, Motion.Hold(1, Motion.Slow));
+            PaperLayer.Opacity = 0.85;
+            PaperLayer.BeginAnimation(OpacityProperty, Motion.Hold(1, Motion.Instant));
         }
 
         ViewModel.RestoreSettings(AppSettings.Current);
-        await ViewModel.LoadAsync();
+
+        // 扫描一结束（LoadAsync 里 IsLoading 置 false 那一刻）就应该能交互，
+        // 不能等后台补全名字跑完；补全继续在后台推进，列表只做增量刷新。
         _firstLoadDone = true;
+        _ = ViewModel.LoadAsync();
     }
 
     /// <summary>跨屏拖动改了缩放：更新 DPI 并让所有位图按新 DPI 重出。</summary>

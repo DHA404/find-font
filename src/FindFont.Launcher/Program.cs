@@ -33,7 +33,7 @@ namespace FindFont.Launcher
             }
 
             var version = ReadRequiredVersion(runtimeConfig);
-            if (version != null && !IsRuntimeInstalled(version))
+            if (version != null && !IsRuntimeInstalledCached(version))
             {
                 var answer = MessageBox.Show(
                     "find-font 需要 .NET 8 桌面运行时（Desktop Runtime）。\n\n" +
@@ -93,6 +93,79 @@ namespace FindFont.Launcher
             catch (Exception)
             {
                 return "8.0.0";
+            }
+        }
+
+        /// <summary>
+        /// 带缓存的运行时检测。
+        /// <para>
+        /// <c>dotnet --list-runtimes</c> 要拉起一个 .NET 主机进程，冷启动要 200–400 ms，
+        /// 而运行时安装/卸载是极低频事件。所以把「所需版本 + 检测结果」写进
+        /// <c>%LOCALAPPDATA%\find-font\runtime-check.txt</c>，命中就直接启动。
+        /// 只有检测到「缺失」时才不写缓存，避免用户装完运行时之后仍被拦住。
+        /// </para>
+        /// </summary>
+        private static bool IsRuntimeInstalledCached(string requiredVersion)
+        {
+            var cached = ReadCache();
+            if (cached != null && cached.Item1 == requiredVersion) return cached.Item2;
+
+            var installed = IsRuntimeInstalled(requiredVersion);
+            if (installed) WriteCache(requiredVersion);
+
+            return installed;
+        }
+
+        private static string CachePath()
+        {
+            try
+            {
+                var root = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "find-font");
+                Directory.CreateDirectory(root);
+                return Path.Combine(root, "runtime-check.txt");
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>返回「缓存里的所需版本, 上次检测为已安装」，无缓存返回 null。</summary>
+        private static Tuple<string, bool> ReadCache()
+        {
+            var path = CachePath();
+            if (path == null) return null;
+
+            try
+            {
+                if (!File.Exists(path)) return null;
+
+                var text = File.ReadAllText(path).Trim();
+                var parts = text.Split('|');
+                if (parts.Length != 2) return null;
+
+                return new Tuple<string, bool>(parts[0], parts[1] == "1");
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static void WriteCache(string requiredVersion)
+        {
+            var path = CachePath();
+            if (path == null) return;
+
+            try
+            {
+                File.WriteAllText(path, requiredVersion + "|1");
+            }
+            catch (Exception)
+            {
+                // 写不进去只是下次多花 300 ms，不影响启动。
             }
         }
 

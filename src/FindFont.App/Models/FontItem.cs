@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Windows.Media.Imaging;
 using FindFont.App.Services;
 
 namespace FindFont.App.Models;
@@ -131,33 +132,75 @@ public partial class FontItem : ObservableObject
     /// </summary>
     public void RequestLargePreview(string text, double fontSize, int width, int height)
     {
-        if (string.IsNullOrEmpty(FullPath)) return;
-
-        var request = new RenderRequest(
-            FontKey: RenderKey,
-            FontFilePath: FullPath,
-            Text: string.IsNullOrEmpty(text) ? " " : text,
-            FontSize: fontSize <= 0 ? 28 : fontSize,
-            PixelWidth: width,
-            PixelHeight: height,
-            Dpi: RenderDpi.Current);
-
-        var cached = AppServices.RenderCache.TryGetFromCache(request);
+        var cached = TryTakeCachedSmall(text, fontSize, width, height);
         if (cached is not null)
         {
             PreviewBitmapLarge = cached;
             return;
         }
 
+        var request = BuildRequest(text, fontSize, width, height);
+        if (request is null) return;
+
         _ = ApplyLargeAsync(request);
+    }
+
+    /// <summary>
+    /// 为列表行请求小样本位图。由首屏预热批量调用，让用户不用先看到一排「正在渲染…」。
+    /// 已缓存的直接落位，未缓存的交给渲染线程池并发出图。
+    /// </summary>
+    public void RequestSmallPreview(string text, double fontSize, int width, int height)
+    {
+        var cached = TryTakeCachedSmall(text, fontSize, width, height);
+        if (cached is not null)
+        {
+            PreviewBitmap = cached;
+            return;
+        }
+
+        var request = BuildRequest(text, fontSize, width, height);
+        if (request is null) return;
+
+        _ = ApplySmallAsync(request);
+    }
+
+    private BitmapSource? TryTakeCachedSmall(string text, double fontSize, int width, int height)
+    {
+        var request = BuildRequest(text, fontSize, width, height);
+        return request is null ? null : AppServices.RenderCache.TryGetFromCache(request);
+    }
+
+    private RenderRequest? BuildRequest(string text, double fontSize, int width, int height)
+    {
+        if (string.IsNullOrEmpty(FullPath)) return null;
+
+        return new RenderRequest(
+            FontKey: RenderKey,
+            FontFilePath: FullPath,
+            Text: string.IsNullOrEmpty(text) ? " " : text,
+            FontSize: fontSize <= 0 ? 28 : fontSize,
+            PixelWidth: width,
+            PixelHeight: height,
+            Dpi: RenderDpi.Current,
+            FamilyName: string.IsNullOrWhiteSpace(LocalizedName) ? FamilyName : LocalizedName);
     }
 
     private async Task ApplyLargeAsync(RenderRequest request)
     {
-                try
+        try
         {
-            var bitmap = await AppServices.RenderCache.RenderAsync(request).ConfigureAwait(true);
-            PreviewBitmapLarge = bitmap;
+            PreviewBitmapLarge = await AppServices.RenderCache.RenderAsync(request).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task ApplySmallAsync(RenderRequest request)
+    {
+        try
+        {
+            PreviewBitmap = await AppServices.RenderCache.RenderAsync(request).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException)
         {

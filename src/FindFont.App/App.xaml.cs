@@ -21,6 +21,7 @@ public partial class App : Application
     {
         if (StartupSuppressed) return;
 
+        StartupTrace.Mark("app-startup");
         base.OnStartup(e);
 
         // 提权微进程模式：不打开主窗口，执行一次文件/注册表操作后立即退出。
@@ -32,6 +33,7 @@ public partial class App : Application
         }
 
         InstallCrashHandlers();
+        StartupTrace.Mark("crash-handlers");
 
         // 单实例：第二个实例把已有窗口叫到前台然后自己退出。
         _instance = SingleInstance.Acquire();
@@ -50,6 +52,12 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
 
+        // DPI 必须在任何渲染请求之前就位。窗口一构造出来句柄还没创建，
+        // 但 VisualTreeHelper 仍能拿到所属显示器的 DPI；等到 Loaded 才设的话，
+        // 首屏那批请求会全按 96 DPI 出图再被系统拉伸。
+        Services.RenderDpi.Track(window);
+        StartupTrace.Mark("window-created");
+
         // 窗口几何/内容从设置恢复，必须在 Show 之前，否则会看到窗口从默认位置跳一下。
         AppSettings.Current.ApplyWindow(window);
 
@@ -58,6 +66,8 @@ public partial class App : Application
         WindowBackdrop.Apply(window);
 
         window.Show();
+        StartupTrace.Mark("window-shown");
+        Diagnostics.Info(StartupTrace.Describe());
     }
 
     protected override void OnExit(ExitEventArgs e)

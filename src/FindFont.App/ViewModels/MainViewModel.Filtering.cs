@@ -28,6 +28,7 @@ public partial class MainViewModel
             return;
         }
 
+        Helpers.StartupTrace.Mark("scan-done");
         _allFonts.Clear();
         _allFonts.AddRange(result.Items);
 
@@ -39,6 +40,10 @@ public partial class MainViewModel
                      $"缺失文件 {result.MissingFiles}），耗时 {result.Elapsed.TotalMilliseconds:F0} ms";
 
         IsLoading = false;
+
+        // 扫描一结束就先给首屏可见的那几行出图，用户不用盯着「正在渲染…」等。
+        PrewarmFirstScreen();
+        Helpers.StartupTrace.Mark("prewarm-queued");
 
         // 后台补全真实名称：每完成一项就回填 UI。
         _enhanceCts?.Cancel();
@@ -87,72 +92,12 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(BrokenCount));
             StatusText = $"字体信息补全完成：共 {_allFonts.Count} 个字体，异常 {BrokenCount} 个";
+            Helpers.StartupTrace.Mark("enhance-done");
         }
         catch (OperationCanceledException)
         {
             // 用户重新加载或退出。
         }
-    }
-
-    partial void OnSearchTextChanged(string value)
-    {
-        OnPropertyChanged(nameof(EmptyStateText));
-        if (_suspendSearch) return;
-        DebounceSearch();
-    }
-
-    partial void OnSelectedCategoryIndexChanged(int value) => ApplyFilter();
-
-    partial void OnSelectedSortIndexChanged(int value) => ApplyFilter();
-
-    partial void OnSelectedStyleIndexChanged(int value)
-    {
-        RaiseStyleFlags();
-        ApplyFilter();
-    }
-
-    partial void OnShowBrokenOnlyChanged(bool value) => ApplyFilter();
-
-    partial void OnFocusedFontChanged(FontItem? value)
-    {
-        OnPropertyChanged(nameof(IsDetailVisible));
-        if (value is null) ClearColophon();
-    }
-
-    partial void OnPreviewTextChanged(string value)
-    {
-        AppServices.PreviewText = value;
-        RefreshPreviewBitmaps();
-    }
-
-    partial void OnPreviewFontSizeChanged(double value) => RefreshPreviewBitmaps();
-
-    /// <summary>
-    /// 预览文字或字号变化：只把已实现行的位图槽位清零，让绑定重新触发渲染。
-    /// 刻意不清空位图缓存 —— 缓存键本来就把文本与字号算进去了，旧图会被 LRU 自然淘汰；
-    /// 在这里 Clear() 会让每次打字都把上千个字体重新渲染一遍。
-    /// </summary>
-    private void RefreshPreviewBitmaps()
-    {
-        foreach (var item in _allFonts)
-        {
-            if (item.PreviewBitmap is null && item.PreviewBitmapLarge is null) continue;
-            item.PreviewBitmap = null;
-            item.PreviewBitmapLarge = null;
-            item.IsPreviewPending = false;
-        }
-    }
-
-    private void RequestLargePreviews(IReadOnlyList<FontItem> items)
-    {
-        foreach (var item in items)
-            item.RequestLargePreview(PreviewText, PreviewFontSize, LargePreviewWidth, LargePreviewHeight);
-    }
-
-    private void ReleaseLargePreviews()
-    {
-        foreach (var item in _lastLargeSelected) item.ReleaseLargePreview();
-        _lastLargeSelected.Clear();
     }
 
     private void DebounceSearch()

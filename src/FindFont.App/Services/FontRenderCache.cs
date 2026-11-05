@@ -48,10 +48,6 @@ public sealed partial class FontRenderCache : IDisposable
     private readonly object _sync = new();
     private long _bytes;
 
-    private readonly Dictionary<string, GlyphTypeface> _glyphs = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Typeface?> _typefaces = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, bool> _invalidGlyphs = new(StringComparer.OrdinalIgnoreCase);
-
     // 同一键的并发请求合并：只投递一次渲染，其余 await 同一个 Task。
     private readonly Dictionary<CacheKey, TaskCompletionSource<BitmapSource>> _inflight = new();
 
@@ -61,9 +57,8 @@ public sealed partial class FontRenderCache : IDisposable
 
     private readonly Dictionary<(int Width, int Height), BitmapSource> _placeholders = new();
 
-    private readonly Thread _renderThread;
-    private readonly Dispatcher _renderDispatcher;
-    private readonly ManualResetEventSlim _ready = new(false);
+    // 渲染线程池：每个线程自带 Dispatcher 与独占 Typeface 缓存（见 FontRenderCache.Pool.cs）。
+    private readonly RenderWorker[] _workers;
 
     private long _renderedFrames;
     private bool _disposed;
@@ -73,25 +68,7 @@ public sealed partial class FontRenderCache : IDisposable
         _capacity = Math.Max(32, capacity);
         _byteBudget = Math.Max(4L * 1024 * 1024, byteBudgetBytes);
 
-        Dispatcher? readyDispatcher = null;
-        var thread = new Thread(() =>
-        {
-            readyDispatcher = Dispatcher.CurrentDispatcher;
-            _ready.Set();
-            Dispatcher.Run();
-        })
-        {
-            IsBackground = true,
-            Name = "FindFont.Render",
-        };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-
-        if (!_ready.Wait(TimeSpan.FromSeconds(5)) || readyDispatcher is null)
-            throw new InvalidOperationException("渲染线程启动失败。");
-
-        _renderThread = thread;
-        _renderDispatcher = readyDispatcher;
+        _workers = StartWorkers();
     }
 
     /// <summary>当前缓存位图数量。</summary>
@@ -108,6 +85,9 @@ public sealed partial class FontRenderCache : IDisposable
 
     /// <summary>累计真正执行的渲染次数（缓存命中与合并都不计数），供测试与诊断。</summary>
     public long RenderedFrames => Interlocked.Read(ref _renderedFrames);
+
+    /// <summary>当前渲染线程数量（半核起步，夹在 2–4）。</summary>
+    public int WorkerThreads => _workers.Length;
 
     /// <summary>字节预算上限。</summary>
     public long ByteBudget => _byteBudget;
@@ -163,7 +143,15 @@ public sealed partial class FontRenderCache : IDisposable
             });
         }
 
-        _renderDispatcher.BeginInvoke(new Action(() =>
+        var worker = PickWorker(key);
+        var dispatcher = worker.Dispatcher;
+        if (dispatcher is null)
+        {
+            lock (_sync) _inflight.Remove(key);
+            return Task.FromResult(Placeholder(request));
+        }
+
+        dispatcher.BeginInvoke(new Action(() =>
         {
             try
             {
@@ -200,7 +188,7 @@ public sealed partial class FontRenderCache : IDisposable
                 BitmapSource bitmap;
                 try
                 {
-                    bitmap = RenderCore(request);
+                    bitmap = RenderCore(request, worker);
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FileFormatException
                                                or System.Runtime.InteropServices.COMException or NotSupportedException
@@ -249,23 +237,18 @@ public sealed partial class FontRenderCache : IDisposable
 
         foreach (var tcs in pending) tcs.TrySetCanceled();
 
-        try
-        {
-            _renderDispatcher.InvokeShutdown();
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or TaskCanceledException)
-        {
-            // 渲染线程已退出。
-        }
+        StopWorkers();
 
         lock (_sync)
         {
             _map.Clear();
             _lru.Clear();
             _bytes = 0;
-            _glyphs.Clear();
-            _typefaces.Clear();
-            _invalidGlyphs.Clear();
+            foreach (var worker in _workers)
+            {
+                worker.ClearCaches();
+            }
+
             _placeholders.Clear();
         }
     }

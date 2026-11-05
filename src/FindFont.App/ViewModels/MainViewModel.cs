@@ -22,6 +22,14 @@ public partial class MainViewModel : ObservableObject
     public const int LargePreviewWidth = 1120;
     public const int LargePreviewHeight = 220;
 
+    /// <summary>首屏预热行数：约等于 1000px 高窗口能同时看到的行数。</summary>
+    internal const int PrewarmRows = 12;
+
+    /// <summary>预热位图尺寸，与 SpecimenRowTemplate 里小样本一致。</summary>
+    internal const int PrewarmWidth = 1120;
+
+    internal const int PrewarmHeight = 92;
+
     /// <summary>界面上显示的版本号，来自 version.txt（经程序集元数据带过来）。</summary>
     public string AppVersion => Helpers.AppInfo.Version;
 

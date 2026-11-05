@@ -59,6 +59,11 @@ internal static class Program
         TestRunner.Run("搜索高亮切分命中片段", FeatureTests.TestHighlight);
         TestRunner.Run("拖放安装复用同一分拣路径", FeatureTests.TestDropInstallFilter);
         TestRunner.Run("多字面标注与渲染键", FeatureTests.TestFaceLabel);
+        TestRunner.Run("批量读字面与逐字面读取等价", PerformanceTests.TestSingleOpenMatchesPerFace);
+        TestRunner.Run("每个字体文件只探测一次", PerformanceTests.TestFileIndexProbesEachFileOnce);
+        TestRunner.Run("注册表并行读取顺序稳定", PerformanceTests.TestRegistryOrderIsStable);
+        TestRunner.Run("首屏预热覆盖可见行", PerformanceTests.TestPrewarmCoversViewport);
+        TestRunner.Run("渲染线程池并行出图", PerformanceTests.TestRenderWorkerPool);
 
         return TestRunner.Summary();
     }

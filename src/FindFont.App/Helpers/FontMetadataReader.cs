@@ -170,79 +170,10 @@ public static partial class FontMetadataReader
 
         var offsets = SfntReader.ReadFaceOffsets(stream);
         if (offsets is null) return null;
-        if (faceIndex < 0 || faceIndex >= offsets.Length) return null;
 
-        var tables = SfntReader.ReadTables(stream, offsets[faceIndex]);
-        if (tables is null) return null;
-
-        var names = NameTableParser.ParseNameRecords(tables.NameTable);
-        if (names.Count == 0) return null;
-
-        var family = NameTableParser.PickFamily(names, NameTableParser.NameIdTypographicFamily)
-                     ?? NameTableParser.PickFamily(names, NameTableParser.NameIdFamily);
-        if (family is null) return null;
-
-        var subfamily = NameTableParser.PickSubfamily(names, NameTableParser.NameIdTypographicSubfamily)
-                        ?? NameTableParser.PickSubfamily(names, NameTableParser.NameIdSubfamily);
-
-        var chineseFamily = family.Value.Chinese ?? string.Empty;
-        var englishFamily = family.Value.English ?? family.Value.Raw ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(englishFamily) && string.IsNullOrWhiteSpace(chineseFamily))
-            return null;
-
-        var weight = 400;
-        var italic = false;
-        var embeddingFlags = -1;
-        Models.FontLanguage? script = null;
-
-        if (SfntReader.ReadOs2Table(stream, tables) is { } os2)
-        {
-            weight = (int)BinaryPrimitives.ReadUInt16BigEndian(os2.AsSpan(4));
-
-            if (os2.Length >= 10)
-            {
-                embeddingFlags = (int)BinaryPrimitives.ReadUInt16BigEndian(os2.AsSpan(8));
-            }
-
-            if (os2.Length >= 58)
-            {
-                script = LanguageInference.FromUnicodeRange(
-                    BinaryPrimitives.ReadUInt32BigEndian(os2.AsSpan(42)),
-                    BinaryPrimitives.ReadUInt32BigEndian(os2.AsSpan(46)));
-            }
-
-            if (os2.Length >= 64)
-            {
-                var fsSelection = BinaryPrimitives.ReadUInt16BigEndian(os2.AsSpan(62));
-                italic = (fsSelection & 0x01) != 0; // ITALIC
-            }
-        }
-
-        if (!italic && SfntReader.ReadHeadTable(stream, tables) is { } head)
-        {
-            var macStyle = BinaryPrimitives.ReadUInt16BigEndian(head.AsSpan(44));
-            italic = (macStyle & 0x02) != 0; // ITALIC
-        }
-
-        if (weight is < 1 or > 1000) weight = 400;
-
-        var faceEnglish = subfamily?.English ?? subfamily?.Raw ?? string.Empty;
-        var faceChinese = subfamily?.Chinese ?? string.Empty;
-
-        return new FontFileInfo(
-            FamilyName: string.IsNullOrWhiteSpace(englishFamily) ? chineseFamily : englishFamily,
-            ChineseFamilyName: chineseFamily,
-            FaceName: faceEnglish,
-            ChineseFaceName: faceChinese,
-            Weight: weight,
-            IsItalic: italic)
-        {
-            FaceIndex = faceIndex,
-            EmbeddingFlags = embeddingFlags,
-            ScriptLanguage = script,
-        };
+        return ReadFaceCore(stream, offsets, faceIndex);
     }
+
 
     /// <summary>把 fsType 位域翻译成给用户看的一句话。</summary>
     public static string DescribeEmbedding(int flags)

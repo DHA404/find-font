@@ -10,6 +10,9 @@ namespace FindFont.App.Helpers;
 /// </summary>
 public static class Motion
 {
+    /// <summary>窗口入场：只做半拍收束，不能让用户等动画。</summary>
+    public static readonly Duration Instant = new(TimeSpan.FromMilliseconds(80));
+
     /// <summary>极短反馈：hover、press。</summary>
     public static readonly Duration Fast = new(TimeSpan.FromMilliseconds(120));
 
@@ -36,6 +39,8 @@ public static class Motion
     public static Duration BaseXaml => Enabled ? Base : TimeSpan.Zero;
 
     public static Duration SlowXaml => Enabled ? Slow : TimeSpan.Zero;
+
+    public static Duration InstantXaml => Enabled ? Instant : TimeSpan.Zero;
 
     /// <summary>按条件取「动画时长」或「零时长」，让代码里只有一条分支。</summary>
     public static Duration If(bool play) => play && Enabled ? Base : TimeSpan.Zero;

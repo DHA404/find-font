@@ -88,11 +88,13 @@ public partial class MainViewModel
     private void ShowAbout()
     {
         var text = Helpers.Diagnostics.DescribeEnvironment()
-            + $"字体总数：{TotalCount}\n"
-            + $"失效登记：{BrokenCount}\n"
-            + $"当前筛选：{CategoryOptions[SelectedCategoryIndex]} / {StyleOptions[SelectedStyleIndex]}\n"
-            + $"渲染 DPI：{AppServices.RenderCache.ByteBudget / (1024 * 1024)} MB 预算，"
-            + $"已渲染 {AppServices.RenderCache.RenderedFrames} 帧";
+            + "字体总数：" + TotalCount + Environment.NewLine
+            + "失效登记：" + BrokenCount + Environment.NewLine
+            + "当前筛选：" + CategoryOptions[SelectedCategoryIndex] + " / " + StyleOptions[SelectedStyleIndex] + Environment.NewLine
+            + "缓存预算：" + (AppServices.RenderCache.ByteBudget / (1024 * 1024)) + " MB，"
+            + "已渲染 " + AppServices.RenderCache.RenderedFrames + " 帧"
+            + Environment.NewLine + Environment.NewLine
+            + Helpers.StartupTrace.Describe();
 
         var window = new Views.AboutWindow(text) { Owner = System.Windows.Application.Current.MainWindow };
         window.ShowDialog();

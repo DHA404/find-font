@@ -1,3 +1,4 @@
+using System.IO;
 using FindFont.App.Helpers;
 using FindFont.App.Models;
 
@@ -12,9 +13,11 @@ public sealed record FontScanResult(
     TimeSpan Elapsed);
 
 /// <summary>
-/// 字体扫描器（计划书 2C 混合方案）：
-/// 1) 同步读注册表，毫秒级得到字体文件名与注册名，UI 立即出数据；
-/// 2) 后台异步解析字体文件真实家族名/本地化名，完成后逐项回填。
+/// 字体扫描器（计划书 2C 混合方案）。
+/// <para>
+/// 0.6.0 起改为三段流水：并行读注册表 → 解析并缓存文件路径 → 按「唯一文件」并行预解析元数据。
+/// 这样一次扫描就把家族名、字重、语言、嵌入权限全部拿到，后台补名阶段基本没有活干。
+/// </para>
 /// </summary>
 public sealed class FontScanner
 {
@@ -26,96 +29,54 @@ public sealed class FontScanner
             "Microsoft", "Windows", "Fonts"),
     };
 
-    /// <summary>同步扫描注册表与用户字体目录，返回可直接展示的粗略列表。</summary>
+    private static readonly string[] FontExtensions = { "*.ttf", "*.otf", "*.ttc", "*.otc" };
+
+    /// <summary>同步扫描注册表与用户字体目录，返回带完整元数据的字体列表。</summary>
     public FontScanResult Scan()
     {
         var started = DateTime.UtcNow;
+        var entries = FontRegistryReader.ReadEntries();
+
+        // 路径解析结果按「注册表里的值」缓存：HKLM 的 64/32 视图各有一份同名登记，
+        // 不缓存的话同一个文件名要白跑好几遍 File.Exists。
+        var pathCache = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var probes = BuildProbes(entries, pathCache);
+
         var dedup = new FontDeduplicator();
+        var missingFiles = 0;
+        var parseFailures = 0;
 
-        int registryEntries = 0;
-        int missingFiles = 0;
-
-        void AddEntry(string registryName, string? fileName, bool isSystem)
+        foreach (var entry in entries)
         {
-            registryEntries++;
-            if (string.IsNullOrWhiteSpace(fileName)) return;
+            if (string.IsNullOrWhiteSpace(entry.Value)) continue;
 
-            var path = ResolvePath(fileName);
+            var path = Lookup(entry.Value, pathCache);
             if (path is null)
             {
                 missingFiles++;
-                var ghost = CreateBrokenItem(registryName, fileName, isSystem, "字体文件缺失");
-                dedup.Add(ghost);
-                return;
+                dedup.Add(FontItemBuilder.CreateBroken(entry.Name, entry.Value, entry.IsSystem, "字体文件缺失"));
+                continue;
             }
 
-            var cleanedName = FontRegistryReader.CleanRegistryName(registryName);
-            var faceCount = FontMetadataReader.CountFaces(path);
-            var style = FontRegistryReader.GuessStyleFromName(registryName);
-            var stamp = ReadFileStamp(path);
-
-            // .ttc / .otc 一个文件里装着多个字面（simsun.ttc 就有宋体与新宋体），
-            // 每个成员各生成一行，否则会成批漏掉中文字体。
-            for (var face = 0; face < faceCount; face++)
-            {
-                var item = new FontItem
-                {
-                    FamilyName = cleanedName,
-                    DisplayName = cleanedName,
-                    FileName = Path.GetFileName(path),
-                    FullPath = path,
-                    IsSystemFont = isSystem,
-                    StyleName = style,
-                    StatusMessage = string.Empty,
-                    FaceIndex = face,
-                    FaceCount = faceCount,
-                    FileSize = stamp.Size,
-                    ModifiedAt = stamp.Modified,
-                };
-                item.IsBold = item.Weight >= 600;
-                item.Language = LanguageInference.Infer(cleanedName, item.FileName);
-                item.Category = LanguageInference.ToCategory(item.Language);
-
-                dedup.Add(item);
-            }
+            var probe = probes.TryGetValue(path, out var found) ? found : FontFileIndex.ProbeFile(path);
+            parseFailures += FontItemBuilder.Add(dedup, probe, path, entry.Name, entry.IsSystem);
         }
 
-        FontRegistryReader.ReadAll(AddEntry);
-
         // 用户级字体目录里可能还有注册表未登记的字体。
-        // 注意：这里能拿到的只有文件名，不保证和注册表里的家族名一致，
+        // 这里能拿到的只有文件名，不保证和注册表里的家族名一致，
         // 所以按名字去重合不上——已经被注册表收录的文件直接按路径跳过。
         var userFontDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Microsoft", "Windows", "Fonts");
         if (Directory.Exists(userFontDir))
         {
-            foreach (var file in SafeEnumerate(userFontDir, "*.ttf", "*.otf", "*.ttc", "*.otc"))
-            {
-                if (dedup.ContainsPath(file)) continue;
+            var unregistered = SafeEnumerate(userFontDir, FontExtensions)
+                .Where(file => !dedup.ContainsPath(file))
+                .ToList();
 
-                var name = Path.GetFileNameWithoutExtension(file);
-                var faceCount = FontMetadataReader.CountFaces(file);
-                var stamp = ReadFileStamp(file);
-                for (var face = 0; face < faceCount; face++)
-                {
-                    var item = new FontItem
-                    {
-                        FamilyName = name,
-                        DisplayName = name,
-                        FileName = Path.GetFileName(file),
-                        FullPath = file,
-                        IsSystemFont = false,
-                        StatusMessage = string.Empty,
-                        FaceIndex = face,
-                        FaceCount = faceCount,
-                        FileSize = stamp.Size,
-                        ModifiedAt = stamp.Modified,
-                    };
-                    item.Language = LanguageInference.Infer(name);
-                    item.Category = LanguageInference.ToCategory(item.Language);
-                    dedup.Add(item);
-                }
+            foreach (var pair in FontFileIndex.Build(unregistered))
+            {
+                parseFailures += FontItemBuilder.Add(dedup, pair.Value, pair.Key, null, isSystem: false);
             }
         }
 
@@ -124,14 +85,14 @@ public sealed class FontScanner
 
         return new FontScanResult(
             items,
-            registryEntries,
+            entries.Count,
             missingFiles,
-            0,
+            parseFailures,
             DateTime.UtcNow - started);
     }
 
     /// <summary>
-    /// 异步补全字体真实名称。每解析完一个就回调一次（UI 线程由调用方保证）。
+    /// 后台补全：扫描阶段已补齐绝大部分信息，这里只处理仍然缺名字或标记异常的项。
     /// </summary>
     public async Task EnhanceAsync(
         IEnumerable<FontItem> items,
@@ -139,25 +100,34 @@ public sealed class FontScanner
         IProgress<int>? progress = null,
         CancellationToken token = default)
     {
-        var list = items.ToList();
+        var pending = items
+            .Where(item => string.IsNullOrWhiteSpace(item.LocalizedName) || item.IsBroken)
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            progress?.Report(0);
+            return;
+        }
+
         var done = 0;
+        var ui = SynchronizationContext.Current;
 
         await Task.Run(() =>
         {
-            foreach (var item in list)
+            var batch = new List<FontItem>(64);
+            foreach (var item in pending)
             {
                 token.ThrowIfCancellationRequested();
+
                 if (!string.IsNullOrWhiteSpace(item.FullPath) && File.Exists(item.FullPath))
                 {
-                    var info = item.FaceCount > 1
-                        ? FontMetadataReader.TryReadFace(item.FullPath, item.FaceIndex)
-                        : FontMetadataReader.TryRead(item.FullPath);
+                    var info = FontMetadataReader.ReadFile(item.FullPath)
+                        .FirstOrDefault(f => f.FaceIndex == item.FaceIndex);
 
                     if (info is null)
                     {
-                        // 旧式 .fon 位图字体本来就装不进 sfnt 解析器，但它能正常显示，
-                        // 不能算「异常字体」，否则状态栏的异常数会被 7 个系统字体污染。
-                        if (IsLegacyBitmapFont(item.FullPath))
+                        if (FontItemBuilder.IsLegacyBitmapFont(item.FullPath))
                         {
                             item.IsBroken = false;
                             item.StatusMessage = "旧式位图字体";
@@ -170,30 +140,7 @@ public sealed class FontScanner
                     }
                     else
                     {
-                        item.LocalizedName = info.FamilyName;
-                        item.ChineseName = info.ChineseFamilyName;
-                        item.DisplayName = string.IsNullOrWhiteSpace(info.ChineseFamilyName)
-                            ? info.FamilyName
-                            : info.ChineseFamilyName;
-                        if (!string.IsNullOrWhiteSpace(info.FaceName) || !string.IsNullOrWhiteSpace(info.ChineseFaceName))
-                        {
-                            item.StyleName = string.IsNullOrWhiteSpace(info.ChineseFaceName)
-                                ? info.FaceName
-                                : info.ChineseFaceName;
-                        }
-                        item.Weight = info.Weight;
-                        item.IsBold = info.Weight >= 600;
-                        item.IsItalic = info.IsItalic;
-                        item.IsBroken = false;
-                        item.StatusMessage = string.Empty;
-                        item.FaceIndex = info.FaceIndex;
-                        item.FaceCount = info.FaceCount;
-                        item.Embedding = FontMetadataReader.DescribeEmbedding(info.EmbeddingFlags);
-
-                        var language = LanguageInference.InferWithCoverage(
-                            info.ScriptLanguage, info.ChineseFamilyName, info.FamilyName, item.FileName);
-                        item.Language = language;
-                        item.Category = LanguageInference.ToCategory(language);
+                        FontItemBuilder.ApplyMetadata(item, info);
                     }
                 }
                 else
@@ -202,33 +149,65 @@ public sealed class FontScanner
                     item.StatusMessage = "字体文件缺失";
                 }
 
+                batch.Add(item);
                 done++;
+
+                // 逐项跨线程回调在几千条时会淹没 UI 线程，每 50 项批量回填一次。
+                if (batch.Count >= 50) Flush(batch, onUpdated, ui);
                 progress?.Report(done);
-                onUpdated?.Invoke(item);
             }
+
+            Flush(batch, onUpdated, ui);
         }, token).ConfigureAwait(false);
     }
 
-    /// <summary>旧式 GDI 位图字体（.fon）不是 sfnt 容器，解析不出家族名属于预期行为。</summary>
-    private static bool IsLegacyBitmapFont(string path)
-        => path.EndsWith(".fon", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// 取文件大小与修改时间，供「按最近修改 / 按文件大小」排序使用。
-    /// 读不到时返回零值 —— 排序里零值自然沉到最后，不影响其他项。
-    /// </summary>
-    private static (long Size, DateTime Modified) ReadFileStamp(string path)
+    private static void Flush(List<FontItem> batch, Action<FontItem>? onUpdated, SynchronizationContext? ui)
     {
-        try
+        if (batch.Count == 0) return;
+
+        if (onUpdated is null || ui is null)
         {
-            var info = new FileInfo(path);
-            if (!info.Exists) return (0, DateTime.MinValue);
-            return (info.Length, info.LastWriteTime);
+            foreach (var item in batch) onUpdated?.Invoke(item);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        else
         {
-            return (0, DateTime.MinValue);
+            var copy = batch.ToArray();
+            ui.Post(_ =>
+            {
+                foreach (var item in copy) onUpdated(item);
+            }, null);
         }
+
+        batch.Clear();
+    }
+
+    private static Dictionary<string, FontFileIndex.Probe> BuildProbes(
+        IReadOnlyList<FontRegistryEntry> entries,
+        Dictionary<string, string?> pathCache)
+    {
+        var unique = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Value)) continue;
+
+            var path = Lookup(entry.Value, pathCache);
+            if (path is null) continue;
+            if (seen.Add(path)) unique.Add(path);
+        }
+
+        return FontFileIndex.Build(unique);
+    }
+
+    /// <summary>解析路径并记入缓存；同一个注册表值只做一次文件系统探测。</summary>
+    private static string? Lookup(string value, Dictionary<string, string?> cache)
+    {
+        if (cache.TryGetValue(value, out var cached)) return cached;
+
+        var path = ResolvePath(value);
+        cache[value] = path;
+        return path;
     }
 
     private static IEnumerable<string> SafeEnumerate(string dir, params string[] patterns)
@@ -280,16 +259,4 @@ public sealed class FontScanner
 
         return null;
     }
-
-    private static FontItem CreateBrokenItem(string registryName, string fileName, bool isSystem, string reason) => new()
-    {
-        FamilyName = FontRegistryReader.CleanRegistryName(registryName),
-        DisplayName = FontRegistryReader.CleanRegistryName(registryName),
-        FileName = Path.GetFileName(fileName),
-        FullPath = string.Empty,
-        IsSystemFont = isSystem,
-        IsBroken = true,
-        StatusMessage = reason,
-        StyleName = FontRegistryReader.GuessStyleFromName(registryName),
-    };
 }

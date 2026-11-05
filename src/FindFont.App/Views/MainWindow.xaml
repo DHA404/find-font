@@ -138,6 +138,10 @@
                                       IsChecked="{Binding IsStyleItalic}" />
                             <CheckBox Content="只看失效登记" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
                                       IsChecked="{Binding ShowBrokenOnly}" />
+                            <CheckBox Content="只看缺映射" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
+                                      IsChecked="{Binding ShowMissingMapOnly}" />
+                            <CheckBox Content="只看空字形" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
+                                      IsChecked="{Binding ShowEmptyGlyphOnly}" />
                         </WrapPanel>
 
                     </StackPanel>
@@ -267,6 +271,13 @@
                             <TextBlock Text="{Binding ColophonEmbedding}" Foreground="{StaticResource Ink}"
                                        FontSize="{StaticResource TextBodySize}" TextWrapping="Wrap" />
                         </StackPanel>
+
+                        <TextBlock Text="字形覆盖" Style="{StaticResource ColophonLabel}" />
+                        <TextBlock Text="{Binding ColophonCoverage}" Style="{StaticResource ColophonValue}" />
+                        <TextBlock Text="{Binding ColophonCoverageChars}" Margin="0,0,0,16"
+                                   FontSize="{StaticResource TextBodySize}" Foreground="{StaticResource Proof}"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding ColophonCoverageChars, Converter={StaticResource StringToVisibility}}" />
 
                         <TextBlock Text="状态" Style="{StaticResource ColophonLabel}" />
                         <TextBlock Text="{Binding ColophonStatus}" Style="{StaticResource ColophonValue}" />

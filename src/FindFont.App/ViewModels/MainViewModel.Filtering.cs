@@ -93,6 +93,9 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(BrokenCount));
             StatusText = $"字体信息补全完成：共 {_allFonts.Count} 个字体，异常 {BrokenCount} 个";
             Helpers.StartupTrace.Mark("enhance-done");
+
+            // 字形覆盖检测排在补名之后，刻意不 await：首屏已经可交互，这个可以慢慢量。
+            _ = RefreshCoverageAsync();
         }
         catch (OperationCanceledException)
         {
@@ -144,6 +147,10 @@ public partial class MainViewModel
     private bool MatchesExceptCategory(FontItem item)
     {
         if (ShowBrokenOnly && !item.IsBroken) return false;
+
+        // 缺字筛选：未检测的字体在打开这两个开关时一律排除，因为「不知道」不等于「没问题」。
+        if (ShowMissingMapOnly && !item.HasMissingFromCmap) return false;
+        if (ShowEmptyGlyphOnly && !item.HasEmptyGlyph) return false;
 
         var style = SelectedStyleIndex switch
         {
@@ -201,6 +208,9 @@ public partial class MainViewModel
         // 一次 Reset 而不是上千次 Add。
         VisibleFonts.ReplaceAll(matches);
 
+        // 新出现的行如果上一次已经量过，直接把缓存结果补上，不用等下一轮检测。
+        SyncCoverageToVisible();
+
         RefreshHighlights();
 
         RebuildFacets(counts);
@@ -208,6 +218,8 @@ public partial class MainViewModel
         StatusText = string.IsNullOrWhiteSpace(SearchText)
             ? $"共 {_allFonts.Count} 个字体，当前显示 {matches.Count} 个"
             : $"“{SearchText.Trim()}” 匹配 {matches.Count} 个字体";
+
+        if (CoverageHoleCount > 0) StatusText += $"（{CoverageHoleCount} 个缺字）";
 
         OnPropertyChanged(nameof(EmptyStateText));
         OnPropertyChanged(nameof(HasNoResults));

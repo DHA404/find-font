@@ -153,13 +153,33 @@
                     </Border>
                 </StackPanel>
 
-                <Border Grid.Column="1" Background="{StaticResource ProofWash}"
-                        CornerRadius="2" Padding="7,2" VerticalAlignment="Center"
-                        Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource TextMetaSize}"
-                               Foreground="{StaticResource Proof}" />
-                </Border>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- 缺字徽标：这个字体在当前样品串下画不出某些字。两种缺字合成一个入口，
+                         细分数字放 ToolTip 与右栏，行上只留一个短标签。 -->
+                    <Border Background="{StaticResource ProofWash}" CornerRadius="2" Padding="7,2"
+                            Margin="0,0,8,0" VerticalAlignment="Center"
+                            ToolTip="{Binding CoverageDetail}"
+                            Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding CoverageLabel}" FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource Proof}" />
+                    </Border>
+
+                    <Border Background="{StaticResource ProofWash}"
+                            CornerRadius="2" Padding="7,2" VerticalAlignment="Center"
+                            Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource Proof}" />
+                    </Border>
+                </StackPanel>
             </Grid>
+
+            <!-- 缺字示例：只在真的有缺字时出现，避免每行多一行空文本。 -->
+            <TextBlock Margin="0,-6,0,12" TextTrimming="CharacterEllipsis"
+                       FontSize="{StaticResource TextMetaSize}"
+                       Foreground="{StaticResource InkFaint}"
+                       Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
+                <Run Text="缺字：" /><Run Text="{Binding CoverageExamples, Mode=OneWay}" Foreground="{StaticResource Proof}" />
+            </TextBlock>
 
             <!-- 搜索命中行：命中片段用品格红标出，没命中时整行折叠。 -->
             <TextBlock Margin="0,0,0,12" TextTrimming="CharacterEllipsis"

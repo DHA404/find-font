@@ -54,6 +54,7 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程；**卸载时只删本工具装过的文件**（进回收站），系统自带字体只清登记 |
 | **拖放安装** | 把字体文件拖到窗口任意位置即可安装；拖拽悬停时就按「有没有能装的格式」切换光标，装不了的文件会说明原因 |
 | **多字面容器** | `.ttc/.otc` 里每个字面各占一行，标「第 2/3 面」，`simsun.ttc` 的宋体与新宋体都能单独预览 |
+| **字形缺失检测** | 拿当前样本文字去每个字体里逐个码位核对，分「cmap 里没有这个字」与「有映射但字形是空的」两类报出来，并列出缺了哪几个字 |
 | **拒装网页字体** | `.woff/.woff2/.eot` 是浏览器格式，装进系统目录也看不见，直接明说拒绝原因而不是假装成功 |
 | **失效登记清理** | 删除注册表里指向缺失文件的条目，**不删除任何字体文件** |
 | **单实例** | 重复双击不会开出第二个窗口，而是把已有窗口叫到前台 |
@@ -129,6 +130,7 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | 窗口大小、搜索词每次重启都丢 | `System.Text.Json` 存 `%LOCALAPPDATA%\find-font\settings.json`，变更后 500 ms 合并写；先写 `.tmp` 再原子替换，避免断电留半截 JSON | `Services/AppSettings.cs` |
 | 高分屏上样本偏小发虚 | `app.manifest` 声明 PerMonitorV2；位图按 `VisualTreeHelper.GetDpi` 的真实 DPI 渲染，**DPI 进缓存键**，跨屏拖动不会命中旧 DPI 的模糊图 | `app.manifest`、`Services/RenderDpi.cs` |
 | 崩溃后用户什么都说不清 | 未处理异常统一落盘到 `%LOCALAPPDATA%\find-font\logs`（不可写则依次退到 `%TEMP%`），保留 7 天；「关于」一键复制环境信息 | `Helpers/Diagnostics.cs` |
+| 「字体里有几个字是空的」和「字体里没这个字」在界面上看起来一样，都是空白 | 分开报：`cmap` 查不到码位记「无映射」，查到了但 `loca/glyf` 的轮廓长度为 0 记「空字形」；CFF 轮廓没有 `loca`，只报无映射并标注不支持，不猜 | `Helpers/GlyphCoverageReader.cs`、`Models/GlyphCoverage.cs` |
 
 更多取舍（为什么直读 sfnt 而不是 `GlyphTypeface`、为什么用 `Motion.Hold` 而不是 `FillBehavior.Stop`）写在 `.docs/PLAN.md`。
 
@@ -198,6 +200,9 @@ src/FindFont.App/
   Helpers/SfntReader.cs           sfnt/ttcf 容器、表目录、big-endian tag
   Helpers/NameTableParser.cs      name 表记录与本地化名评分
   Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属，不解析字符表
+  Helpers/CmapReader.cs           cmap 子表选择与 fmt 0/4/6/12 查表
+  Helpers/GlyphCoverageReader.cs  逐码位核对：cmap 有无映射 + glyf 轮廓是否为空
+  Models/GlyphCoverage.cs         缺字结论（四类 + 缺失字符清单）
   Helpers/Motion.cs               三档时长 + 遵循系统动画开关
   Helpers/WindowBackdrop.cs       Mica / Acrylic / 降级，三级回退
   Helpers/SingleInstance.cs       命名互斥体 + 唤起已有窗口
@@ -216,6 +221,7 @@ src/FindFont.App/
   Services/ElevationHost.cs       --install-font 等参数协议的微进程宿主
   Services/AppSettings.cs         settings.json 读写、窗口几何、屏幕可见性校验
   Services/RenderDpi.cs           当前监视器 DPI 的来源
+  Services/FontCoverageIndex.cs   字形覆盖探测：并行 + 按（路径、字面、探测集）缓存
   Converters/                     FontToImage（MultiBinding → BitmapSource）、可见性转换器
   Themes/Tokens.xaml              色板、字体、尺寸常量（唯一配色来源）
   Themes/Controls.xaml            聚合器：Inputs / Buttons / Rows 三份
@@ -224,6 +230,7 @@ src/FindFont.App/
   ViewModels/MainViewModel.cs     状态字段、集合、计算属性
   ViewModels/MainViewModel.Filtering.cs   扫描加载、防抖搜索、筛选、分类计数
   ViewModels/MainViewModel.Preview.cs     首屏预热与预览位图生命周期
+  ViewModels/MainViewModel.Coverage.cs    缺字检测的防抖、批量量测与结果回填
   ViewModels/MainViewModel.Commands.cs    选择、安装、卸载、清理、打开目录
   ViewModels/MainViewModel.Settings.cs    设置往返、DPI 刷新、关于/日志命令
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
@@ -283,8 +290,15 @@ build.cmd test
 40. 注册表并行读取顺序稳定：两次并行读取的条目顺序逐项一致
 41. 首屏预热覆盖可见行：预热投递不阻塞 UI（断言 <200 ms），之后位图陆续落位
 42. 渲染线程池并行出图：线程数夹在 2–4，不同键能同时出图且每个键只渲染一次
+43. cmap 无映射被识别：`流丽行书.ttf` 里「你」不在 cmap 中，判为无映射；同串「世」完整
+44. 映射到空字形被识别：`日文毛笔字体.ttf` 里「你」有映射但 `glyf` 轮廓为 0，判为空字形
+45. 两类缺字不会混淆：Arial 面对汉字全是无映射，不会误报空字形
+46. 多字面字形覆盖独立检测：`simsun.ttc` 的两个字面各自量测，覆盖集合都在
+47. CFF 字面不判空字形：只认「有 `CFF ` 表且没有 `loca`」的真 CFF 字体，断言其不宣称支持
+48. 字形覆盖检测复用缓存：同一探测集第二次不再读盘，结果可从缓存取回
+49. 缺字筛选只留对应类型：「只看缺映射」「只看空字形」各自只留对应项，两个都开是交集（未检测项不算通过）
 
-当前全部通过（42 项）。
+当前全部通过（49 项）。
 
 ## 启动与首屏
 
@@ -311,6 +325,7 @@ build.cmd test
 | 首屏 12 行出图（冷启动，4 条渲染线程并发） | 约 150 ms（串行要 1.1 s） |
 | 单个样本行再渲染（缓存命中） | < 0.01 ms |
 | 1 万条字体的搜索 / 筛选 / 清空恢复 | 各约 1 ms |
+| 字形覆盖检测（1380 个字体，24 个不同码位） | 约 140 ms，再次检测命中缓存约 1 ms |
 | 内存占用（1380 个字体、可视区渲染完） | 约 160 MB，位图缓存上限 96 MB |
 
 上面的数字来自仓库外的进程内基准（扫描 / 元数据 / 首屏三段各自计时）。测试里刻意不断言绝对毫秒——CI 机器的磁盘比开发机慢一个数量级，绝对时间断言必然假失败；性能护栏改成断言结构性保证（只打开一次、只探测一次、并发数在合理区间、预热不阻塞 UI）。
@@ -339,6 +354,8 @@ tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，�
 - 注册表扫描只覆盖 `HKLM`/`HKCU` 的 `Windows NT\CurrentVersion\Fonts`，不处理通过 GDI 私有加载的临时字体。
 - 主程序是框架依赖单文件，依赖目标机已装 .NET 8 桌面运行时；缺失时由引导器提示并给出下载链接。
 - 首次启动（ReadyToRun 缓存未预热、系统文件缓存为空）比后续启动慢；第二次起明显更快。
+- 字形缺失检测只认 `glyf` 轮廓（真 CFF/PostScript 轮廓的 `.otf` 没有 `loca` 表），这类字体只报「无映射」，不判断字形是否为空。
+- 缺字检测的依据是「当前样本文字」这一小组码位，不是整张字符表；它回答的是「我这串字能不能显示出来」，不是「这个字体完整吗」。
 
 ## 贡献
 

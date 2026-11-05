@@ -31,6 +31,8 @@ public partial class MainViewModel
         ColophonLanguage = hasCjk ? "中文 / 东亚字符" : "西文";
         ColophonFace = item.FaceLabel;
         ColophonEmbedding = string.IsNullOrWhiteSpace(item.Embedding) ? "—" : item.Embedding;
+        ColophonCoverage = item.CoverageDetail;
+        ColophonCoverageChars = item.CoverageExamples;
         ColophonStatus = item.IsBroken
             ? $"异常   {item.StatusMessage}"
             : item.IsSystemFont
@@ -50,6 +52,8 @@ public partial class MainViewModel
         ColophonStatus = string.Empty;
         ColophonFace = string.Empty;
         ColophonEmbedding = string.Empty;
+        ColophonCoverage = string.Empty;
+        ColophonCoverageChars = string.Empty;
     }
 
     /// <summary>由视图层把 ListBox 的多选结果同步到视图模型（UI 线程调用）。</summary>

@@ -84,6 +84,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _colophonStatus = string.Empty;
     [ObservableProperty] private string _colophonFace = string.Empty;
     [ObservableProperty] private string _colophonEmbedding = string.Empty;
+    [ObservableProperty] private string _colophonCoverage = string.Empty;
+    [ObservableProperty] private string _colophonCoverageChars = string.Empty;
 
     public int TotalCount => _allFonts.Count;
     public int BrokenCount => _allFonts.Count(f => f.IsBroken);

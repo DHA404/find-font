@@ -64,6 +64,13 @@ internal static class Program
         TestRunner.Run("注册表并行读取顺序稳定", PerformanceTests.TestRegistryOrderIsStable);
         TestRunner.Run("首屏预热覆盖可见行", PerformanceTests.TestPrewarmCoversViewport);
         TestRunner.Run("渲染线程池并行出图", PerformanceTests.TestRenderWorkerPool);
+        TestRunner.Run("cmap 无映射被识别", CoverageTests.TestMissingFromMap);
+        TestRunner.Run("映射到空字形被识别", CoverageTests.TestEmptyGlyph);
+        TestRunner.Run("两类缺字不会混淆", CoverageTests.TestKindsDoNotMix);
+        TestRunner.Run("多字面字形覆盖独立检测", CoverageTests.TestFacesMeasuredIndependently);
+        TestRunner.Run("CFF 字面不判空字形", CoverageTests.TestCffSkipsEmptyGlyph);
+        TestRunner.Run("字形覆盖检测复用缓存", CoverageTests.TestCoverageCacheReused);
+        TestRunner.Run("缺字筛选只留对应类型", CoverageTests.TestCoverageFilters);
 
         return TestRunner.Summary();
     }

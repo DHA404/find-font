@@ -12,9 +12,30 @@ internal static class SfntReader
     private const uint Os2TableTag = 0x4F532F32;  // 'OS/2'
     private const uint HeadTableTag = 0x68656164; // 'head'
     private const uint TtcTag = 0x74746366;       // 'ttcf'
+    private const uint CmapTableTag = 0x636D6170; // 'cmap'
+    private const uint LocaTableTag = 0x6C6F6361; // 'loca'
+    private const uint GlyfTableTag = 0x676C7966; // 'glyf'
+    private const uint MaxpTableTag = 0x6D617870; // 'maxp'
+    private const uint CffTableTag = 0x43464620;  // 'CFF '
 
-    /// <summary>表目录读出的位置信息；name 表内容已读出，OS/2 与 head 只记位置，按需再读。</summary>
-    internal sealed record SfntTables(byte[] NameTable, long Os2Offset, int Os2Length, long HeadOffset);
+    /// <summary>
+    /// 表目录读出的位置信息；name 表内容已读出，其余表只记位置，按需再读。
+    /// cmap / loca / glyf / maxp 是字形覆盖检测要用的，CFF 标记用来区分轮廓格式。
+    /// </summary>
+    internal sealed record SfntTables(
+        byte[] NameTable,
+        long Os2Offset,
+        int Os2Length,
+        long HeadOffset,
+        long HeadLength = 0,
+        long CmapOffset = -1,
+        int CmapLength = 0,
+        long LocaOffset = -1,
+        int LocaLength = 0,
+        long GlyfOffset = -1,
+        int GlyfLength = 0,
+        long MaxpOffset = -1,
+        bool HasCff = false);
 
     /// <summary>
     /// 读出容器里每个字体（TTC 成员）的 sfnt 起始偏移。普通字体返回单元素数组，
@@ -73,7 +94,12 @@ internal static class SfntReader
 
         long nameOffset = -1, nameLength = -1;
         long os2Offset = -1, os2Length = -1;
-        long headOffset = -1;
+        long headOffset = -1, headLength = 0;
+        long cmapOffset = -1, cmapLength = 0;
+        long locaOffset = -1, locaLength = 0;
+        long glyfOffset = -1, glyfLength = 0;
+        long maxpOffset = -1;
+        var hasCff = false;
 
         for (var i = 0; i < numTables; i++)
         {
@@ -90,7 +116,17 @@ internal static class SfntReader
                 case Os2TableTag:
                     os2Offset = offset; os2Length = len; break;
                 case HeadTableTag:
-                    headOffset = offset; break;
+                    headOffset = offset; headLength = len; break;
+                case CmapTableTag:
+                    cmapOffset = offset; cmapLength = (int)Math.Min(len, int.MaxValue); break;
+                case LocaTableTag:
+                    locaOffset = offset; locaLength = (int)Math.Min(len, int.MaxValue); break;
+                case GlyfTableTag:
+                    glyfOffset = offset; glyfLength = (int)Math.Min(len, int.MaxValue); break;
+                case MaxpTableTag:
+                    maxpOffset = offset; break;
+                case CffTableTag:
+                    hasCff = true; break;
             }
         }
 
@@ -104,7 +140,26 @@ internal static class SfntReader
             nameData,
             os2Offset,
             os2Offset >= 0 ? (int)Math.Min(os2Length, 78) : 0,
-            headOffset);
+            headOffset,
+            headLength,
+            cmapOffset,
+            (int)cmapLength,
+            locaOffset,
+            (int)locaLength,
+            glyfOffset,
+            (int)glyfLength,
+            maxpOffset,
+            hasCff);
+    }
+
+    /// <summary>读取 maxp 表前 6 字节（含偏移 4 处的 numGlyphs）；表不存在或读不满时返回 null。</summary>
+    internal static byte[]? ReadMaxpTable(Stream stream, SfntTables tables)
+    {
+        if (tables.MaxpOffset < 0) return null;
+
+        var buf = new byte[6];
+        stream.Position = tables.MaxpOffset;
+        return stream.Read(buf, 0, buf.Length) >= 6 ? buf : null;
     }
 
     /// <summary>读取 OS/2 表前 78 字节；表不存在或长度不足 6 字节时返回 null。</summary>

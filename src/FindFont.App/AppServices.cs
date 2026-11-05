@@ -12,6 +12,9 @@ public static class AppServices
 
     public static FontScanner Scanner { get; } = new();
 
+    /// <summary>字形覆盖检测的缓存池（按路径 + 字面 + 探测集缓存）。</summary>
+    internal static FontCoverageIndex CoverageIndex { get; } = new();
+
     /// <summary>当前全局预览文本（由主窗口输入框写入，供对比窗口复用）。</summary>
     public static string PreviewText { get; set; } = "The quick brown fox 0123 你好，世界";
 }

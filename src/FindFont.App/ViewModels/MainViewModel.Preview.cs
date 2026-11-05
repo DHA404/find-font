@@ -60,6 +60,9 @@ public partial class MainViewModel
     {
         AppServices.PreviewText = value;
         RefreshPreviewBitmaps();
+
+        // 缺字是相对「样品串」而言的：文字一变，之前量的覆盖就作废，防抖后重测。
+        DebounceCoverage();
     }
 
     partial void OnPreviewFontSizeChanged(double value) => RefreshPreviewBitmaps();

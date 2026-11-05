@@ -103,6 +103,8 @@ public partial class MainViewModel
 
     partial void OnSelectedCategoryIndexChanged(int value) => ApplyFilter();
 
+    partial void OnSelectedSortIndexChanged(int value) => ApplyFilter();
+
     partial void OnSelectedStyleIndexChanged(int value)
     {
         RaiseStyleFlags();
@@ -248,8 +250,13 @@ public partial class MainViewModel
                 matches.Add(item);
         }
 
+        // 排序只影响呈现顺序，不改变筛选结果集合本身。
+        if (SelectedSortIndex != 0) matches.Sort(CurrentComparer);
+
         // 一次 Reset 而不是上千次 Add。
         VisibleFonts.ReplaceAll(matches);
+
+        RefreshHighlights();
 
         RebuildFacets(counts);
 

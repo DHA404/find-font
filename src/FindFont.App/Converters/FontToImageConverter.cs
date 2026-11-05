@@ -62,7 +62,7 @@ public sealed class FontToImageConverter : IMultiValueConverter
         var isLarge = height >= 120;
 
         var request = new RenderRequest(
-            FontKey: string.IsNullOrEmpty(item.FullPath) ? item.FamilyName : item.FullPath,
+            FontKey: string.IsNullOrEmpty(item.FullPath) ? item.FamilyName : item.RenderKey,
             FontFilePath: string.IsNullOrEmpty(item.FullPath) ? null : item.FullPath,
             Text: text,
             FontSize: fontSize,

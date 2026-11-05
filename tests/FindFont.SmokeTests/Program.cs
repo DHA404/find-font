@@ -45,6 +45,9 @@ internal static class Program
         TestRunner.Run("卸载不删系统字体文件", InstallerTests.TestUninstallProtectsSystemFonts);
         TestRunner.Run("网页字体（WOFF）明确拒装", InstallerTests.TestWebFontsRejected);
         TestRunner.Run("字体注册表值名格式正确", InstallerTests.TestRegistryValueName);
+        TestRunner.Run("多字面容器展开为多条字体", FontMetadataTests.TestReadAllFaces);
+        TestRunner.Run("字符覆盖优先于名字推断语言", FontMetadataTests.TestUnicodeRangeLanguage);
+        TestRunner.Run("嵌入权限位翻译成文案", FontMetadataTests.TestDescribeEmbedding);
         TestRunner.Run("单实例互斥体只放行一个进程", InfrastructureTests.TestSingleInstance);
         TestRunner.Run("设置默认值与屏幕可见性判断", InfrastructureTests.TestSettings);
         TestRunner.Run("设置经视图模型往返一致", InfrastructureTests.TestSettingsRoundTripThroughViewModel);
@@ -52,6 +55,10 @@ internal static class Program
         TestRunner.Run("DPI 参与位图缓存键", InfrastructureTests.TestDpiParticipatesInCacheKey);
         TestRunner.Run("崩溃日志落盘且带上下文", InfrastructureTests.TestDiagnostics);
         TestRunner.Run("源文件不超过 300 行", InfrastructureTests.TestSourceFileLineLimit);
+        TestRunner.Run("四种排序键正确且稳定", FeatureTests.TestSortModes);
+        TestRunner.Run("搜索高亮切分命中片段", FeatureTests.TestHighlight);
+        TestRunner.Run("拖放安装复用同一分拣路径", FeatureTests.TestDropInstallFilter);
+        TestRunner.Run("多字面标注与渲染键", FeatureTests.TestFaceLabel);
 
         return TestRunner.Summary();
     }

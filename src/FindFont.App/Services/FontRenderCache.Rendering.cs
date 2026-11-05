@@ -13,7 +13,7 @@ public sealed partial class FontRenderCache
 {
     private BitmapSource RenderCore(RenderRequest request)
     {
-        var typeface = ResolveTypeface(request.FontFilePath);
+        var typeface = ResolveTypeface(request);
 
         var dpi = request.Dpi <= 0 ? 96 : request.Dpi;
         var scale = dpi / 96.0;
@@ -59,42 +59,56 @@ public sealed partial class FontRenderCache
     /// 取 Typeface。首次为某文件构造时优先用「文件 URI + #家族名」，
     /// 避开按家族名二次查找系统字体族的开销，也避免同类名撞车。
     /// </summary>
-    private Typeface ResolveTypeface(string? path)
+    private Typeface ResolveTypeface(RenderRequest request)
     {
+        var path = request.FontFilePath;
+        var family = string.IsNullOrWhiteSpace(request.FamilyName) ? null : request.FamilyName;
+
         var fallback = new Typeface("Segoe UI");
-        if (string.IsNullOrWhiteSpace(path)) return fallback;
+        if (string.IsNullOrWhiteSpace(path) && family is null) return fallback;
+
+        // 缓存键：单字体文件用路径；多字面容器用「路径#家族名」区分成员。
+        var cacheKey = family is null ? path! : $"{path}#{family}";
 
         lock (_sync)
         {
-            if (_typefaces.TryGetValue(path, out var cached)) return cached ?? fallback;
+            if (_typefaces.TryGetValue(cacheKey, out var cached)) return cached ?? fallback;
         }
 
-        var glyph = ResolveGlyphTypeface(path);
         Typeface? built = null;
 
-        if (glyph is not null && glyph.FamilyNames.Count > 0)
+        if (!string.IsNullOrWhiteSpace(path))
         {
-            var family = glyph.FamilyNames.Values.First();
-            try
+            var glyphFamily = family;
+            var glyph = ResolveGlyphTypeface(path);
+            if (glyphFamily is null && glyph is not null && glyph.FamilyNames.Count > 0)
             {
-                built = new Typeface(
-                    new FontFamily(new Uri(Path.GetFullPath(path)), "./#" + family),
-                    FontStyles.Normal,
-                    FontWeights.Normal,
-                    FontStretches.Normal);
-                if (!built.TryGetGlyphTypeface(out _)) built = null;
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or IOException)
-            {
-                built = null;
+                glyphFamily = glyph.FamilyNames.Values.First();
             }
 
-            built ??= new Typeface(new FontFamily(family), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            if (glyphFamily is not null)
+            {
+                try
+                {
+                    built = new Typeface(
+                        new FontFamily(new Uri(Path.GetFullPath(path)), "./#" + glyphFamily),
+                        FontStyles.Normal,
+                        FontWeights.Normal,
+                        FontStretches.Normal);
+                    if (!built.TryGetGlyphTypeface(out _)) built = null;
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or IOException)
+                {
+                    built = null;
+                }
+
+                built ??= new Typeface(new FontFamily(glyphFamily), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            }
         }
 
         lock (_sync)
         {
-            _typefaces[path] = built;
+            _typefaces[cacheKey] = built;
             return built ?? fallback;
         }
     }

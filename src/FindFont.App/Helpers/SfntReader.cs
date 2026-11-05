@@ -11,41 +11,56 @@ internal static class SfntReader
     private const uint NameTableTag = 0x6E616D65; // 'name'
     private const uint Os2TableTag = 0x4F532F32;  // 'OS/2'
     private const uint HeadTableTag = 0x68656164; // 'head'
+    private const uint TtcTag = 0x74746366;       // 'ttcf'
 
     /// <summary>表目录读出的位置信息；name 表内容已读出，OS/2 与 head 只记位置，按需再读。</summary>
     internal sealed record SfntTables(byte[] NameTable, long Os2Offset, int Os2Length, long HeadOffset);
 
-    /// <summary>读取表目录与 name 表字节；不是可识别的 sfnt/TTC 时返回 null。</summary>
-    internal static SfntTables? ReadTables(Stream stream)
+    /// <summary>
+    /// 读出容器里每个字体（TTC 成员）的 sfnt 起始偏移。普通字体返回单元素数组，
+    /// 不是可识别容器时返回 null。只读文件头与偏移表，几十字节。
+    /// </summary>
+    internal static long[]? ReadFaceOffsets(Stream stream)
     {
         var length = stream.Length;
         if (length < 12) return null;
 
-        // TTC（.ttc/.otc）以 ttcf 开头，后接字体偏移表；只取第一个字体。
         Span<byte> header = stackalloc byte[12];
         stream.Position = 0;
         if (stream.Read(header) < 12) return null;
 
         var tag = BinaryPrimitives.ReadUInt32BigEndian(header);
-        long sfntOffset = 0;
+        if (tag != TtcTag) return new[] { 0L };
 
-        if (tag == 0x74746366) // 'ttcf'
+        // ttcf: 4 字节 tag + 4 字节 version + 4 字节 numFonts + 每成员 4 字节偏移。
+        var numFonts = BinaryPrimitives.ReadUInt32BigEndian(header[8..]);
+        if (numFonts is 0 or > 1024) return null;
+        if (length < 12 + numFonts * 4) return null;
+
+        var buf = new byte[numFonts * 4];
+        stream.Position = 12;
+        if (stream.Read(buf, 0, buf.Length) < buf.Length) return null;
+
+        var offsets = new long[numFonts];
+        for (var i = 0; i < numFonts; i++)
         {
-            Span<byte> countBuf = stackalloc byte[4];
-            stream.Position = 8;
-            if (stream.Read(countBuf) < 4) return null;
-            var numFonts = BinaryPrimitives.ReadUInt32BigEndian(countBuf);
-            if (numFonts == 0) return null;
-
-            Span<byte> offBuf = stackalloc byte[4];
-            stream.Position = 12;
-            if (stream.Read(offBuf) < 4) return null;
-            sfntOffset = BinaryPrimitives.ReadUInt32BigEndian(offBuf);
-
-            stream.Position = sfntOffset;
-            if (stream.Read(header) < 12) return null;
-            tag = BinaryPrimitives.ReadUInt32BigEndian(header);
+            offsets[i] = BinaryPrimitives.ReadUInt32BigEndian(buf.AsSpan(i * 4));
         }
+
+        return offsets;
+    }
+
+    /// <summary>读取指定字体的表目录与 name 表字节；不是可识别的 sfnt 时返回 null。</summary>
+    internal static SfntTables? ReadTables(Stream stream, long sfntOffset = 0)
+    {
+        var length = stream.Length;
+        if (sfntOffset < 0 || length < sfntOffset + 12) return null;
+
+        Span<byte> header = stackalloc byte[12];
+        stream.Position = sfntOffset;
+        if (stream.Read(header) < 12) return null;
+
+        var tag = BinaryPrimitives.ReadUInt32BigEndian(header);
 
         // 0x00010000 (TrueType)、'OTTO' (CFF)、'true'、'typ1'
         if (tag is not (0x00010000 or 0x4F54544F or 0x74727565 or 0x74797031)) return null;

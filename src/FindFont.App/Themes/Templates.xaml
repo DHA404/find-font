@@ -144,6 +144,13 @@
                                Foreground="{StaticResource InkFaint}" />
                     <TextBlock Text="{Binding FileName}" FontSize="{StaticResource TextMetaSize}" Margin="16,1,0,0"
                                Foreground="{StaticResource InkFaint}" />
+                    <!-- 多字面容器：同一个 .ttc 里第几个成员，单字体文件不显示。 -->
+                    <Border Background="{StaticResource ProofWash}" CornerRadius="2" Padding="6,1"
+                            Margin="12,0,0,0" VerticalAlignment="Center"
+                            Visibility="{Binding FaceLabel, Converter={StaticResource StringToVisibility}}">
+                        <TextBlock Text="{Binding FaceLabel}" FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource Proof}" />
+                    </Border>
                 </StackPanel>
 
                 <Border Grid.Column="1" Background="{StaticResource ProofWash}"
@@ -153,6 +160,16 @@
                                Foreground="{StaticResource Proof}" />
                 </Border>
             </Grid>
+
+            <!-- 搜索命中行：命中片段用品格红标出，没命中时整行折叠。 -->
+            <TextBlock Margin="0,0,0,12" TextTrimming="CharacterEllipsis"
+                       FontSize="{StaticResource TextMetaSize}"
+                       Visibility="{Binding HasMatch, Converter={StaticResource BoolToVisibility}}">
+                <Run Text="{Binding MatchBefore, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
+                <Run Text="{Binding MatchHit, Mode=OneWay}" Foreground="{StaticResource Proof}"
+                     TextDecorations="Underline" FontWeight="SemiBold" />
+                <Run Text="{Binding MatchAfter, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
+            </TextBlock>
         </StackPanel>
     </DataTemplate>
 

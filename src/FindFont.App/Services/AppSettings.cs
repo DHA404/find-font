@@ -55,6 +55,9 @@ public sealed class AppSettings
     public string? LastSearchText { get; set; }
     public bool ShowBrokenOnly { get; set; }
 
+    /// <summary>列表排序方式，对应 MainViewModel.SortOptions 的索引。</summary>
+    public int SortIndex { get; set; }
+
     /// <summary>设置文件路径。</summary>
     public static string FilePath
     {

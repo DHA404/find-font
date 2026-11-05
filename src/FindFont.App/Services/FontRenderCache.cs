@@ -7,7 +7,19 @@ using System.Windows.Threading;
 namespace FindFont.App.Services;
 
 /// <summary>渲染请求参数。</summary>
-public sealed record RenderRequest(string FontKey, string? FontFilePath, string Text, double FontSize, int PixelWidth, int PixelHeight, double Dpi = 96);
+/// <param name="FamilyName">
+/// 家族名提示。<c>.ttc/.otc</c> 一个文件装着多个字体，只靠路径无法定位到正确的字面，
+/// 必须用「文件 URI + #家族名」才能取到对应成员；为空时退回按路径取首个成员。
+/// </param>
+public sealed record RenderRequest(
+    string FontKey,
+    string? FontFilePath,
+    string Text,
+    double FontSize,
+    int PixelWidth,
+    int PixelHeight,
+    double Dpi = 96,
+    string? FamilyName = null);
 
 /// <summary>
 /// 离屏位图渲染与缓存引擎（计划书核心方案）。

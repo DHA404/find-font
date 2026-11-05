@@ -50,21 +50,34 @@ public sealed class FontScanner
             }
 
             var cleanedName = FontRegistryReader.CleanRegistryName(registryName);
-            var item = new FontItem
-            {
-                FamilyName = cleanedName,
-                DisplayName = cleanedName,
-                FileName = Path.GetFileName(path),
-                FullPath = path,
-                IsSystemFont = isSystem,
-                StyleName = FontRegistryReader.GuessStyleFromName(registryName),
-                StatusMessage = string.Empty,
-            };
-            item.IsBold = item.Weight >= 600;
-            item.Language = LanguageInference.Infer(cleanedName, item.FileName);
-            item.Category = LanguageInference.ToCategory(item.Language);
+            var faceCount = FontMetadataReader.CountFaces(path);
+            var style = FontRegistryReader.GuessStyleFromName(registryName);
+            var stamp = ReadFileStamp(path);
 
-            dedup.Add(item);
+            // .ttc / .otc 一个文件里装着多个字面（simsun.ttc 就有宋体与新宋体），
+            // 每个成员各生成一行，否则会成批漏掉中文字体。
+            for (var face = 0; face < faceCount; face++)
+            {
+                var item = new FontItem
+                {
+                    FamilyName = cleanedName,
+                    DisplayName = cleanedName,
+                    FileName = Path.GetFileName(path),
+                    FullPath = path,
+                    IsSystemFont = isSystem,
+                    StyleName = style,
+                    StatusMessage = string.Empty,
+                    FaceIndex = face,
+                    FaceCount = faceCount,
+                    FileSize = stamp.Size,
+                    ModifiedAt = stamp.Modified,
+                };
+                item.IsBold = item.Weight >= 600;
+                item.Language = LanguageInference.Infer(cleanedName, item.FileName);
+                item.Category = LanguageInference.ToCategory(item.Language);
+
+                dedup.Add(item);
+            }
         }
 
         FontRegistryReader.ReadAll(AddEntry);
@@ -82,18 +95,27 @@ public sealed class FontScanner
                 if (dedup.ContainsPath(file)) continue;
 
                 var name = Path.GetFileNameWithoutExtension(file);
-                var item = new FontItem
+                var faceCount = FontMetadataReader.CountFaces(file);
+                var stamp = ReadFileStamp(file);
+                for (var face = 0; face < faceCount; face++)
                 {
-                    FamilyName = name,
-                    DisplayName = name,
-                    FileName = Path.GetFileName(file),
-                    FullPath = file,
-                    IsSystemFont = false,
-                    StatusMessage = string.Empty,
-                };
-                item.Language = LanguageInference.Infer(name);
-                item.Category = LanguageInference.ToCategory(item.Language);
-                dedup.Add(item);
+                    var item = new FontItem
+                    {
+                        FamilyName = name,
+                        DisplayName = name,
+                        FileName = Path.GetFileName(file),
+                        FullPath = file,
+                        IsSystemFont = false,
+                        StatusMessage = string.Empty,
+                        FaceIndex = face,
+                        FaceCount = faceCount,
+                        FileSize = stamp.Size,
+                        ModifiedAt = stamp.Modified,
+                    };
+                    item.Language = LanguageInference.Infer(name);
+                    item.Category = LanguageInference.ToCategory(item.Language);
+                    dedup.Add(item);
+                }
             }
         }
 
@@ -127,7 +149,10 @@ public sealed class FontScanner
                 token.ThrowIfCancellationRequested();
                 if (!string.IsNullOrWhiteSpace(item.FullPath) && File.Exists(item.FullPath))
                 {
-                    var info = FontMetadataReader.TryRead(item.FullPath);
+                    var info = item.FaceCount > 1
+                        ? FontMetadataReader.TryReadFace(item.FullPath, item.FaceIndex)
+                        : FontMetadataReader.TryRead(item.FullPath);
+
                     if (info is null)
                     {
                         // 旧式 .fon 位图字体本来就装不进 sfnt 解析器，但它能正常显示，
@@ -161,9 +186,12 @@ public sealed class FontScanner
                         item.IsItalic = info.IsItalic;
                         item.IsBroken = false;
                         item.StatusMessage = string.Empty;
+                        item.FaceIndex = info.FaceIndex;
+                        item.FaceCount = info.FaceCount;
+                        item.Embedding = FontMetadataReader.DescribeEmbedding(info.EmbeddingFlags);
 
-                        var language = LanguageInference.Infer(
-                            info.ChineseFamilyName, info.FamilyName, item.FileName);
+                        var language = LanguageInference.InferWithCoverage(
+                            info.ScriptLanguage, info.ChineseFamilyName, info.FamilyName, item.FileName);
                         item.Language = language;
                         item.Category = LanguageInference.ToCategory(language);
                     }
@@ -184,6 +212,24 @@ public sealed class FontScanner
     /// <summary>旧式 GDI 位图字体（.fon）不是 sfnt 容器，解析不出家族名属于预期行为。</summary>
     private static bool IsLegacyBitmapFont(string path)
         => path.EndsWith(".fon", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 取文件大小与修改时间，供「按最近修改 / 按文件大小」排序使用。
+    /// 读不到时返回零值 —— 排序里零值自然沉到最后，不影响其他项。
+    /// </summary>
+    private static (long Size, DateTime Modified) ReadFileStamp(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists) return (0, DateTime.MinValue);
+            return (info.Length, info.LastWriteTime);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return (0, DateTime.MinValue);
+        }
+    }
 
     private static IEnumerable<string> SafeEnumerate(string dir, params string[] patterns)
     {

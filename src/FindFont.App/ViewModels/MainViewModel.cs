@@ -50,11 +50,15 @@ public partial class MainViewModel : ObservableObject
     public IReadOnlyList<double> FontSizeOptions { get; } =
         new[] { 20d, 28d, 36d, 48d, 64d, 88d };
 
+    public IReadOnlyList<string> SortOptions { get; } =
+        new[] { "按名称", "按最近修改", "按文件大小", "按语言" };
+
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _previewText = "The quick brown fox 0123 你好，世界";
     [ObservableProperty] private double _previewFontSize = 36;
     [ObservableProperty] private int _selectedCategoryIndex;
     [ObservableProperty] private int _selectedStyleIndex;
+    [ObservableProperty] private int _selectedSortIndex;
     [ObservableProperty] private bool _showBrokenOnly;
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private double _loadProgress;
@@ -70,6 +74,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _colophonPath = string.Empty;
     [ObservableProperty] private string _colophonLanguage = string.Empty;
     [ObservableProperty] private string _colophonStatus = string.Empty;
+    [ObservableProperty] private string _colophonFace = string.Empty;
+    [ObservableProperty] private string _colophonEmbedding = string.Empty;
 
     public int TotalCount => _allFonts.Count;
     public int BrokenCount => _allFonts.Count(f => f.IsBroken);

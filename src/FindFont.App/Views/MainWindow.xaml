@@ -11,7 +11,8 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFace}"
-        PreviewKeyDown="OnWindowPreviewKeyDown">
+        PreviewKeyDown="OnWindowPreviewKeyDown"
+        AllowDrop="True" DragOver="OnFilesDragOver" Drop="OnFilesDropped">
 
     <Window.DataContext>
         <vm:MainViewModel />
@@ -94,7 +95,10 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0">
+                    <!-- 索引栏内容会随功能增加而变长，套一层滚动，避免末尾控件被裁掉。 -->
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,8">
+                    <StackPanel>
                         <TextBlock Text="分类" Style="{StaticResource SectionLabel}" Margin="22,0,0,10" />
                         <ListBox ItemsSource="{Binding CategoryFacets}"
                                  SelectedIndex="{Binding SelectedCategoryIndex}"
@@ -120,7 +124,9 @@
 
                         <Border Style="{StaticResource Hairline}" Margin="22,18,22,18" />
 
-                        <TextBlock Text="风格" Style="{StaticResource SectionLabel}" Margin="22,0,0,12" />
+                        <!-- 风格与范围合成一组方块开关：两者都是「只看某一类」，
+                             分开写会多出一整段标题与分隔线，索引栏就装不下了。 -->
+                        <TextBlock Text="风格 · 范围" Style="{StaticResource SectionLabel}" Margin="22,0,0,12" />
                         <WrapPanel Margin="18,0,18,0">
                             <CheckBox Content="全部" Style="{StaticResource ChipToggle}" Margin="4,0,8,8"
                                       IsChecked="{Binding IsStyleAll}" />
@@ -130,17 +136,19 @@
                                       IsChecked="{Binding IsStyleBold}" />
                             <CheckBox Content="斜体" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
                                       IsChecked="{Binding IsStyleItalic}" />
+                            <CheckBox Content="只看失效登记" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
+                                      IsChecked="{Binding ShowBrokenOnly}" />
                         </WrapPanel>
 
-                        <Border Style="{StaticResource Hairline}" Margin="22,12,22,18" />
-
-                        <TextBlock Text="范围" Style="{StaticResource SectionLabel}" Margin="22,0,0,12" />
-                        <CheckBox Content="只看失效登记" Style="{StaticResource ChipToggle}"
-                                  Margin="22,0,22,0" HorizontalAlignment="Left"
-                                  IsChecked="{Binding ShowBrokenOnly}" />
                     </StackPanel>
+                    </ScrollViewer>
 
                     <StackPanel Grid.Row="1" Margin="12,16,12,0">
+                        <!-- 排序常驻在动作区上方：列表长短都要立刻能切，不该跟着滚动区一起被裁。 -->
+                        <TextBlock Text="排序" Style="{StaticResource SectionLabel}" Margin="8,0,0,8" />
+                        <ComboBox Style="{StaticResource FieldComboBox}" Margin="8,0,8,14"
+                                  ItemsSource="{Binding SortOptions}"
+                                  SelectedIndex="{Binding SelectedSortIndex}" />
                         <Border Style="{StaticResource Hairline}" Margin="8,0,8,12" />
                         <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
                                 Click="OnCompareClick"
@@ -248,6 +256,17 @@
 
                         <TextBlock Text="语言" Style="{StaticResource ColophonLabel}" />
                         <TextBlock Text="{Binding ColophonLanguage}" Style="{StaticResource ColophonValue}" />
+
+                        <TextBlock Text="字面 / 嵌入" Style="{StaticResource ColophonLabel}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <TextBlock Text="{Binding ColophonFace, TargetNullValue=—}"
+                                       Style="{StaticResource ColophonValue}" Margin="0" />
+                            <TextBlock Text="  ·  " Foreground="{StaticResource InkFaint}"
+                                       FontSize="{StaticResource TextBodySize}"
+                                       Visibility="{Binding ColophonFace, Converter={StaticResource StringToVisibility}}" />
+                            <TextBlock Text="{Binding ColophonEmbedding}" Foreground="{StaticResource Ink}"
+                                       FontSize="{StaticResource TextBodySize}" TextWrapping="Wrap" />
+                        </StackPanel>
 
                         <TextBlock Text="状态" Style="{StaticResource ColophonLabel}" />
                         <TextBlock Text="{Binding ColophonStatus}" Style="{StaticResource ColophonValue}" />

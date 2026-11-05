@@ -27,6 +27,9 @@ public partial class MainViewModel
         var style = settings.SelectedStyleIndex;
         if (style >= 0 && style < StyleOptions.Count) SelectedStyleIndex = style;
 
+        var sort = settings.SortIndex;
+        if (sort >= 0 && sort < SortOptions.Count) SelectedSortIndex = sort;
+
         ShowBrokenOnly = settings.ShowBrokenOnly;
 
         // 上次的搜索词不自动恢复成筛选条件 —— 打开就只看 24 个字体容易让人以为字体丢了。
@@ -56,6 +59,7 @@ public partial class MainViewModel
         settings.PreviewFontSize = PreviewFontSize;
         settings.SelectedCategoryIndex = SelectedCategoryIndex;
         settings.SelectedStyleIndex = SelectedStyleIndex;
+        settings.SortIndex = SelectedSortIndex;
         settings.ShowBrokenOnly = ShowBrokenOnly;
         settings.LastSearchText = SearchText;
     }

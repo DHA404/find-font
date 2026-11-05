@@ -60,6 +60,28 @@ public partial class FontItem : ObservableObject
     [ObservableProperty] private bool _isSystemFont = true;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
+    // 多字面容器（.ttc/.otc）信息：一个文件里装着多个字体，每个成员是一行。
+    [ObservableProperty] private int _faceIndex;
+    [ObservableProperty] private int _faceCount = 1;
+    [ObservableProperty] private string _embedding = string.Empty;
+
+    // 排序依据：扫描时一次性取到，不在每次筛选时重读文件系统。
+    [ObservableProperty] private long _fileSize;
+    [ObservableProperty] private DateTime _modifiedAt = DateTime.MinValue;
+
+    /// <summary>同一个字体文件里的第几个字面；单字体文件恒为 0。</summary>
+    public bool HasMultipleFaces => FaceCount > 1;
+
+    /// <summary>形如「第 2/3 面」；单字体文件返回空串，界面据此隐藏该标签。</summary>
+    public string FaceLabel => FaceCount > 1 ? $"第 {FaceIndex + 1}/{FaceCount} 面" : string.Empty;
+
+    partial void OnFaceIndexChanged(int value) => OnPropertyChanged(nameof(FaceLabel));
+    partial void OnFaceCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(FaceLabel));
+        OnPropertyChanged(nameof(HasMultipleFaces));
+    }
+
     /// <summary>
     /// 搜索用的小写拼串（家族名 + 显示名 + 本地化名 + 中文名 + 文件名 + 样式名）。
     /// 每次名称变化都重建一次，让一次滚动/搜索只做一次 Contains。
@@ -87,15 +109,21 @@ public partial class FontItem : ObservableObject
         RebuildHaystack();
     }
 
+    /// <summary>
+    /// 渲染缓存键。同一个 .ttc 文件里的不同字面必须区分开，否则宋体与新宋体会互相
+    /// 命中对方的位图。单字体文件保持纯路径，兼容旧缓存。
+    /// </summary>
+    public string RenderKey => FaceCount > 1 ? $"{FullPath}#{FaceIndex}" : FullPath;
+
     private void RebuildHaystack()
     {
-        SearchHaystack = string.Concat(
-            FamilyName, "\u0001",
-            DisplayName, "\u0001",
-            LocalizedName, "\u0001",
-            ChineseName, "\u0001",
-            FileName, "\u0001",
-            StyleName).ToLowerInvariant();
+        var parts = string.Join('\u0001', FamilyName, DisplayName, LocalizedName,
+            ChineseName, FileName, StyleName);
+        if (FaceCount > 1)
+        {
+            parts += "\u0001" + FaceLabel + "\u0001" + FamilyName + " " + FaceIndex;
+        }
+        SearchHaystack = parts.ToLowerInvariant();
     }
 
     /// <summary>
@@ -106,7 +134,7 @@ public partial class FontItem : ObservableObject
         if (string.IsNullOrEmpty(FullPath)) return;
 
         var request = new RenderRequest(
-            FontKey: FullPath,
+            FontKey: RenderKey,
             FontFilePath: FullPath,
             Text: string.IsNullOrEmpty(text) ? " " : text,
             FontSize: fontSize <= 0 ? 28 : fontSize,
@@ -143,6 +171,58 @@ public partial class FontItem : ObservableObject
 
     /// <summary>用于去重的稳定键：家族名 + 样式名（忽略大小写）。</summary>
     public string DedupKey => $"{FamilyName}\u0001{StyleName}".ToLowerInvariant();
+
+    // ---- 搜索高亮：命中片段在元数据行下方单独成行，命中部分用品格红标出 ----
+
+    [ObservableProperty] private string _matchBefore = string.Empty;
+    [ObservableProperty] private string _matchHit = string.Empty;
+    [ObservableProperty] private string _matchAfter = string.Empty;
+
+    /// <summary>当前是否有命中片段可显示。</summary>
+    public bool HasMatch => MatchHit.Length > 0;
+
+    partial void OnMatchHitChanged(string value) => OnPropertyChanged(nameof(HasMatch));
+
+    /// <summary>
+    /// 在原始大小写的展示文本里找命中位置，切成「前 / 命中 / 后」三段。
+    /// 找不到（只命中文件名或样式名等次要字段）时清空，不强行造一段。
+    /// </summary>
+    public void SetHighlight(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            MatchBefore = MatchHit = MatchAfter = string.Empty;
+            return;
+        }
+
+        foreach (var source in new[] { BestName, LocalizedName, FamilyName, StyleName, FileName })
+        {
+            if (string.IsNullOrEmpty(source)) continue;
+            var index = source.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+            if (index < 0) continue;
+
+            const int lead = 12;
+            const int tail = 28;
+            var start = Math.Max(0, index - lead);
+            var end = Math.Min(source.Length, index + query.Length + tail);
+
+            MatchBefore = (start > 0 ? "…" : string.Empty) + source[start..index];
+            MatchHit = source.Substring(index, query.Length);
+            MatchAfter = source[(index + query.Length)..end] + (end < source.Length ? "…" : string.Empty);
+            return;
+        }
+
+        MatchBefore = MatchHit = MatchAfter = string.Empty;
+    }
+}
+
+/// <summary>列表排序方式。</summary>
+public enum FontSortMode
+{
+    Name = 0,
+    Recent = 1,
+    Size = 2,
+    Language = 3,
 }
 
 /// <summary>对比窗口的三栏选择结果。</summary>

@@ -222,4 +222,39 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
     }
+
+    /// <summary>
+    /// 拖放安装：只有在拖的是文件、且至少有一个受支持格式时才显示「可放下」光标，
+    /// 否则保持禁止样式，用户不必拖进去才知道不行。
+    /// </summary>
+    private void OnFilesDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = GetSupportedFiles(e).Count > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void OnFilesDropped(object sender, DragEventArgs e)
+    {
+        var all = GetAllDroppedFiles(e);
+        if (all.Count == 0)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        e.Handled = true;
+
+        // 整批交给安装逻辑：它会把不支持的格式逐个说明原因，
+        // 在这里先筛掉的话用户就永远不知道自己拖进来的那半个文件为什么没反应。
+        await ViewModel.InstallFilesAsync(all);
+    }
+
+    private static List<string> GetAllDroppedFiles(DragEventArgs e)
+        => e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] paths
+            ? new List<string>(paths)
+            : new List<string>();
+
+    /// <summary>拖拽悬停时只关心「有没有至少一个能装的文件」，用来决定光标样式。</summary>
+    private static List<string> GetSupportedFiles(DragEventArgs e)
+        => GetAllDroppedFiles(e).Where(FontInstaller.IsSupportedFontFile).ToList();
 }

@@ -29,6 +29,8 @@ public partial class MainViewModel
         ColophonFileName = string.IsNullOrWhiteSpace(item.FileName) ? "—" : item.FileName;
         ColophonPath = string.IsNullOrWhiteSpace(item.FullPath) ? "—" : item.FullPath;
         ColophonLanguage = hasCjk ? "中文 / 东亚字符" : "西文";
+        ColophonFace = item.FaceLabel;
+        ColophonEmbedding = string.IsNullOrWhiteSpace(item.Embedding) ? "—" : item.Embedding;
         ColophonStatus = item.IsBroken
             ? $"异常   {item.StatusMessage}"
             : item.IsSystemFont
@@ -46,6 +48,8 @@ public partial class MainViewModel
         ColophonPath = string.Empty;
         ColophonLanguage = string.Empty;
         ColophonStatus = string.Empty;
+        ColophonFace = string.Empty;
+        ColophonEmbedding = string.Empty;
     }
 
     /// <summary>由视图层把 ListBox 的多选结果同步到视图模型（UI 线程调用）。</summary>
@@ -95,11 +99,22 @@ public partial class MainViewModel
 
         if (dialog.ShowDialog() != true) return;
 
-        // 用户可能通过「所有文件」选了 WOFF 之类的网页字体。这类文件装进去
+        await InstallFilesAsync(dialog.FileNames);
+    }
+
+    /// <summary>
+    /// 安装一批字体文件。文件对话框与拖放共用同一条路径：
+    /// 先分拣出系统真正能认的格式，被拒的给出可读原因，而不是静默跳过。
+    /// </summary>
+    public async Task InstallFilesAsync(IReadOnlyList<string> files)
+    {
+        if (files.Count == 0) return;
+
+        // 用户可能通过「所有文件」或拖放送了 WOFF 之类的网页字体。这类文件装进去
         // 系统也认不出来，必须先拦下来并说清原因，而不是假装装成功。
         var accepted = new List<string>();
         var refusals = new List<string>();
-        foreach (var file in dialog.FileNames)
+        foreach (var file in files)
         {
             if (FontInstaller.IsSupportedFontFile(file)) accepted.Add(file);
             else refusals.Add(FontInstaller.DescribeInstallRefusal(file));

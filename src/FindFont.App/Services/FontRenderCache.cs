@@ -52,8 +52,6 @@ public sealed partial class FontRenderCache : IDisposable
     private readonly Dictionary<CacheKey, TaskCompletionSource<BitmapSource>> _inflight = new();
 
     // 陈旧的同一字体请求丢弃：记录每个字体当前最新的请求序号。
-    private readonly Dictionary<string, long> _latestSeqByFont = new(StringComparer.OrdinalIgnoreCase);
-    private long _seq;
 
     private readonly Dictionary<(int Width, int Height), BitmapSource> _placeholders = new();
 
@@ -119,7 +117,6 @@ public sealed partial class FontRenderCache : IDisposable
         var key = ToKey(request);
 
         TaskCompletionSource<BitmapSource> tcs;
-        long seq;
         lock (_sync)
         {
             // 同键在途：直接复用，避免同一张图被重复渲染。
@@ -130,8 +127,6 @@ public sealed partial class FontRenderCache : IDisposable
 
             tcs = new TaskCompletionSource<BitmapSource>(TaskCreationOptions.RunContinuationsAsynchronously);
             _inflight[key] = tcs;
-            seq = ++_seq;
-            _latestSeqByFont[request.FontKey] = seq;
         }
 
         if (token.CanBeCanceled)
@@ -155,17 +150,12 @@ public sealed partial class FontRenderCache : IDisposable
         {
             try
             {
-                // 同字体已有更新的请求在排队：这张图滚出视野了，别浪费渲染时间。
-                lock (_sync)
-                {
-                    if (_latestSeqByFont.TryGetValue(request.FontKey, out var latest) && latest != seq)
-                    {
-                        _inflight.Remove(key);
-                        tcs.TrySetCanceled();
-                        return;
-                    }
-                }
-
+                // 这里曾经有「同字体有更新的请求就把旧请求取消掉」的优化。它省下的渲染
+                // 时间是真实的，但代价是：旧请求的 await 方拿到取消异常后什么都不做，
+                // 于是一旦新旧两批请求交错（改列宽、改预览字号、改 DPI 都会造成这种交错），
+                // 被取消的那张图就永远不会落到 PreviewBitmap 上，界面停在「正在渲染…」。
+                // 因此这里只尊重调用方显式传入的取消令牌，不再按序号丢弃请求；
+                // 重复渲染由位图缓存与 _inflight 去重兜底。
                 if (token.IsCancellationRequested)
                 {
                     lock (_sync) _inflight.Remove(key);

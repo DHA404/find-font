@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:FindFont.App.ViewModels"
         xmlns:models="clr-namespace:FindFont.App.Models"
         Title="对比选中 · find-font"
-        Width="1440" Height="900" MinWidth="1000" MinHeight="560"
+        Width="1180" Height="760" MinWidth="980" MinHeight="520"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource Paper}"
         UseLayoutRounding="True"
@@ -22,7 +22,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="32,24,32,20">
+        <Grid Grid.Row="0" Margin="24,18,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -36,13 +36,13 @@
 
             <StackPanel Grid.Column="1" Margin="20,0,0,0" VerticalAlignment="Bottom">
                 <TextBlock Text="字号" Style="{StaticResource SectionLabel}" />
-                <ComboBox Width="108" Style="{StaticResource FieldComboBox}"
+                <ComboBox Width="96" Style="{StaticResource FieldComboBox}"
                           ItemsSource="{Binding FontSizeOptions}"
                           SelectedItem="{Binding PreviewFontSize}" />
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="32,0" />
+        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="24,0" />
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,20">
@@ -55,7 +55,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type models:FontItem}">
                         <Border BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1">
-                            <StackPanel Margin="32,26,32,26">
+                            <StackPanel Margin="24,20,24,20">
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -79,12 +79,12 @@
                                             CommandParameter="{Binding}" />
                                 </Grid>
 
-                                <Border Height="210" ClipToBounds="True">
+                                <Border Height="180" ClipToBounds="True">
                                     <Grid>
                                         <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Center"
                                                RenderOptions.BitmapScalingMode="HighQuality">
                                             <Image.Source>
-                                                <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1360x210">
+                                                <MultiBinding Converter="{StaticResource FontToImage}" ConverterParameter="1040x180">
                                                     <Binding />
                                                     <Binding Path="DataContext.PreviewText"
                                                              RelativeSource="{RelativeSource AncestorType=ItemsControl}" />

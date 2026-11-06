@@ -59,17 +59,17 @@ public partial class MainViewModel
     /// <summary>由视图层把 ListBox 的多选结果同步到视图模型（UI 线程调用）。</summary>
     public void UpdateSelection(IReadOnlyList<FontItem> selected)
     {
+        // 多列布局下选中的瓦片不再放大成大样本（大图交给双击打开的对比窗口），
+        // 所以这里只回收旧的大图、不主动请求 —— 少一次 1120x220 的冷渲染。
+        // 必须在 Clear 之前释放：清掉集合以后就找不到该退掉哪几张图了。
+        ReleaseLargePreviews();
+
         SelectedFonts.Clear();
         foreach (var item in selected) SelectedFonts.Add(item);
 
         if (selected.Count == 1) SelectFont(selected[0]);
         else if (selected.Count > 1) FocusedFont = selected[0];
         else FocusedFont = null;
-
-        // 只有被选中的那几行才渲染大样本；上一批被取消选中的行立刻释放。
-        ReleaseLargePreviews();
-        _lastLargeSelected.AddRange(selected);
-        RequestLargePreviews(_lastLargeSelected);
 
         SelectionChanged();
     }

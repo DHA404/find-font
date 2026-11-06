@@ -97,81 +97,18 @@
         </Setter>
     </Style>
 
-    <!-- 样本行：底色与竖条都用透明度渐入，行高变化交给 ItemTemplate 自己做。 -->
-    <Style x:Key="SpecimenRow" TargetType="ListBoxItem">
+    <!--
+        一行样本：容器本身不画任何选中态。选中由行内每个瓦片自己表达
+        （底色抬升 + 左侧 2px 品红竖条），容器再画一层会出现双套高亮。
+    -->
+    <Style x:Key="TileRow" TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="FocusVisualStyle" Value="{StaticResource ProofFocusVisual}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Row" BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1"
-                            SnapsToDevicePixels="True">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <Border x:Name="Mark" Grid.Column="0" Background="{StaticResource Proof}" Opacity="0" />
-
-                            <Grid Grid.Column="1">
-                                <Border x:Name="Hover" Background="{StaticResource Sheet}" Opacity="0" />
-                                <Border x:Name="Picked" Background="{StaticResource SheetRaised}" Opacity="0" />
-                                <ContentPresenter />
-                            </Grid>
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Trigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Hover"
-                                                         Storyboard.TargetProperty="Opacity" To="1"
-                                                         Duration="{x:Static motion:Motion.BaseXaml}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Hover"
-                                                         Storyboard.TargetProperty="Opacity" To="0"
-                                                         Duration="{x:Static motion:Motion.BaseXaml}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.ExitActions>
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Trigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Mark"
-                                                         Storyboard.TargetProperty="Opacity" To="1"
-                                                         Duration="{x:Static motion:Motion.FastXaml}" />
-                                        <DoubleAnimation Storyboard.TargetName="Picked"
-                                                         Storyboard.TargetProperty="Opacity" To="1"
-                                                         Duration="{x:Static motion:Motion.BaseXaml}" />
-                                        <DoubleAnimation Storyboard.TargetName="Hover"
-                                                         Storyboard.TargetProperty="Opacity" To="0"
-                                                         Duration="{x:Static motion:Motion.BaseXaml}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Mark"
-                                                         Storyboard.TargetProperty="Opacity" To="0"
-                                                         Duration="{x:Static motion:Motion.FastXaml}" />
-                                        <DoubleAnimation Storyboard.TargetName="Picked"
-                                                         Storyboard.TargetProperty="Opacity" To="0"
-                                                         Duration="{x:Static motion:Motion.BaseXaml}" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.ExitActions>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
+                    <ContentPresenter />
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

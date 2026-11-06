@@ -49,7 +49,7 @@ public sealed class AppSettings
     // ---- 内容 ----
 
     public string PreviewText { get; set; } = "The quick brown fox 0123 你好，世界";
-    public double PreviewFontSize { get; set; } = 36;
+    public double PreviewFontSize { get; set; } = 28;
     public int SelectedCategoryIndex { get; set; }
     public int SelectedStyleIndex { get; set; }
     public string? LastSearchText { get; set; }

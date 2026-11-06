@@ -44,19 +44,29 @@
     <FontFamily x:Key="UiFace">Segoe UI</FontFamily>
 
     <!--
-        版面尺度集中在这里。整册按 1.25 倍放大过一轮：
-        原先把 13px 正文配 72px 行高在高分屏上读起来像缩略图，
-        现在正文 14 / 元数据 13 / 样本行 92，选中展开 220。
+        版面尺度集中在这里。
+
+        上一轮把整册放大到 1600x1000 宽画布配单列大行，结果是窗口太大、
+        每行两侧留白太多、一屏只看得见六个字体 —— 松。这一轮反过来：
+        窗口收到 1360x880，两侧栏收窄，正文反而从 14 提到 15，
+        样本列表从「一行一个」改成「一行 N 个瓦片」，用密度换信息量。
     -->
-    <sys:Double x:Key="SpecimenRowHeight">92</sys:Double>
-    <sys:Double x:Key="SpecimenRowExpandedHeight">220</sys:Double>
-    <sys:Double x:Key="IndexRailWidth">272</sys:Double>
-    <sys:Double x:Key="ColophonWidth">380</sys:Double>
-    <sys:Double x:Key="TextBodySize">14</sys:Double>
+    <sys:Double x:Key="TileSampleHeight">96</sys:Double>
+    <sys:Double x:Key="TileMetaHeight">36</sys:Double>
+    <sys:Double x:Key="TileRowHeight">176</sys:Double>
+    <sys:Double x:Key="TileMinWidth">340</sys:Double>
+    <sys:Double x:Key="TileGap">20</sys:Double>
+    <sys:Double x:Key="TilePadding">16</sys:Double>
+    <sys:Double x:Key="PageGutter">22</sys:Double>
+    <sys:Double x:Key="IndexRailWidth">208</sys:Double>
+    <sys:Double x:Key="ColophonWidth">300</sys:Double>
+    <sys:Double x:Key="TextBodySize">15</sys:Double>
     <sys:Double x:Key="TextMetaSize">13</sys:Double>
-    <sys:Double x:Key="TitleSize">26</sys:Double>
+    <sys:Double x:Key="TitleSize">24</sys:Double>
     <sys:Double x:Key="SectionLabelSize">12</sys:Double>
 
+    <!-- Padding/Margin 只接受 Thickness，不能直接绑 sys:Double，这里单独给一份。 -->
+    <Thickness x:Key="TilePaddingThickness">16</Thickness>
     <Thickness x:Key="GutterThickness">16</Thickness>
 
     <!-- 全局焦点环：2px 品红实线，替换系统默认虚线框。 -->

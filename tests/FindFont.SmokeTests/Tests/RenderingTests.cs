@@ -110,7 +110,14 @@ internal static class RenderingTests
         Check(arial.PreviewBitmapLarge is null, "未选中的行不应有大样本位图");
         Check(simsun.PreviewBitmapLarge is null, "未选中的行不应有大样本位图");
 
+        // 多列布局下选中瓦片只换底色，不再放大成 220px 大图 ——
+        // 大图改由「双击进入对比窗口」显式请求，这里断言选中本身不产生大图。
         vm.UpdateSelection(new[] { arial });
+        Check(arial.PreviewBitmapLarge is null, "选中瓦片本身不应触发大图渲染");
+
+        // 对比窗口显式请求时才渲染大图。
+        arial.RequestLargePreview(vm.PreviewText, vm.PreviewFontSize,
+            MainViewModel.LargePreviewWidth, MainViewModel.LargePreviewHeight);
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (arial.PreviewBitmapLarge is null && DateTime.UtcNow < deadline)
         {
@@ -119,8 +126,8 @@ internal static class RenderingTests
             Thread.Sleep(20);
         }
 
-        Check(arial.PreviewBitmapLarge is not null, "选中之后应渲染出大样本");
-        Check(simsun.PreviewBitmapLarge is null, "只该给被选中的那一行渲染大样本");
+        Check(arial.PreviewBitmapLarge is not null, "显式请求之后应渲染出大样本");
+        Check(simsun.PreviewBitmapLarge is null, "没有请求的字体不应有大样本");
 
         vm.UpdateSelection(Array.Empty<FontItem>());
         Check(arial.PreviewBitmapLarge is null, "取消选中后应释放大样本位图");

@@ -15,14 +15,14 @@ internal static class UiTests
         Check(System.Windows.Application.Current == app, "Application.Current 应指向测试创建的 App");
 
         Check(app.Resources.Contains("Proof"), "主题里应有 Proof 画刷");
-        Check(app.Resources.Contains("SpecimenRow"), "主题里应有 SpecimenRow 行样式");
+        Check(app.Resources.Contains("TileRow"), "主题里应有 TileRow 行样式");
         Check(app.Resources["Proof"] is System.Windows.Media.SolidColorBrush, "Proof 应是画刷");
 
         var main = new FindFont.App.Views.MainWindow();
         var mainVm = main.DataContext as FindFont.App.ViewModels.MainViewModel;
         Check(mainVm is not null, "主窗口应自带 MainViewModel");
         Check(main.Title.Contains("find-font"), "主窗口标题应含 find-font");
-        Check(main.MinWidth >= 1080, "主窗口最小宽度要能容下三栏");
+        Check(main.MinWidth >= 1040, "主窗口最小宽度要能容下三栏");
 
         var compare = new FindFont.App.Views.CompareWindow();
         Check(compare.DataContext is FindFont.App.ViewModels.CompareViewModel, "对比窗口应自带 CompareViewModel");
@@ -96,7 +96,7 @@ internal static class UiTests
     {
         var app = TestRunner.App ?? throw new InvalidOperationException("Application 未初始化");
 
-        foreach (var key in new[] { "SpecimenRowTemplate", "SlimScrollBar", "ScrollThumb", "Motion" })
+        foreach (var key in new[] { "FontRowTemplate", "FontTileTemplate", "SlimScrollBar", "ScrollThumb", "Motion" })
         {
             if (key == "Motion") continue; // Motion 是静态类型，不在资源字典里
             Check(app.Resources.Contains(key), $"资源字典里缺少 {key}");
@@ -106,13 +106,13 @@ internal static class UiTests
         Check(app.Resources.Contains("InkColor"), "配色 token 应同时暴露 Color，供 ColorAnimation 使用");
 
         var main = new FindFont.App.Views.MainWindow();
-        Check(main.Width >= 1600, "主窗口默认宽度应不少于 1600");
-        Check(main.Height >= 1000, "主窗口默认高度应不少于 1000");
-        Check(main.MinWidth >= 1280, "最小宽度要能容下 272 + 380 两侧栏");
-        Check(main.Width / main.MinWidth <= 1.35, "默认画布不应比最小尺寸大太多，避免小屏幕上被迫滚动");
+        Check(main.Width >= 1300, "主窗口默认宽度应不少于 1300");
+        Check(main.Height >= 860, "主窗口默认高度应不少于 860");
+        Check(main.MinWidth >= 1080, "最小宽度要能容下 208 + 300 两侧栏");
+        Check(main.Width / main.MinWidth <= 1.32, "默认画布不应比最小尺寸大太多，避免小屏幕上被迫滚动");
 
         var compare = new FindFont.App.Views.CompareWindow();
-        Check(compare.Width >= 1440, "对比窗口默认宽度应不少于 1440");
+        Check(compare.Width >= 1100, "对比窗口默认宽度应不少于 1100");
 
         main.Close();
         compare.Close();

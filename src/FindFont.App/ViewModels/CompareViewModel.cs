@@ -35,15 +35,18 @@ public partial class CompareViewModel : ObservableObject
 
     partial void OnPreviewFontSizeChanged(double value) => InvalidatePreviews();
 
-    /// <summary>文本或字号变了，旧位图必须作废，否则转换器会继续交回缓存图。</summary>
+    /// <summary>
+    /// 文本或字号变了，旧位图必须作废，否则转换器会继续交回缓存图。
+    /// 不再整池 Clear 缓存 —— 只清这两栏的大图槽位，其余字体的缓存照旧可用。
+    /// </summary>
     private void InvalidatePreviews()
     {
-        AppServices.RenderCache.Clear();
         foreach (var item in Items)
         {
-            item.PreviewBitmap = null;
             item.PreviewBitmapLarge = null;
             item.IsPreviewPending = false;
+            item.RequestLargePreview(PreviewText, PreviewFontSize,
+                MainViewModel.LargePreviewWidth, MainViewModel.LargePreviewHeight);
         }
     }
 
@@ -53,20 +56,21 @@ public partial class CompareViewModel : ObservableObject
         foreach (var font in fonts.Take(MaxColumns)) Items.Add(font);
         if (Items.Count == 0 && !string.IsNullOrWhiteSpace(AppServices.PreviewText))
             PreviewText = AppServices.PreviewText;
+
+        // 主界面已经不再为选中项渲染大图（改成瓦片小图），对比窗口必须自己请求，
+        // 否则三栏会一直停在「正在渲染…」。
+        foreach (var item in Items)
+        {
+            item.RequestLargePreview(PreviewText, PreviewFontSize,
+                MainViewModel.LargePreviewWidth, MainViewModel.LargePreviewHeight);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanCompareText))]
     private void CompareText()
     {
-        // 对比模式下文本变化会自动重渲染（绑定到 FontToImageConverter）；
-        // 这里只需要让位图缓存失效，保证新文本立即出图。
-        AppServices.RenderCache.Clear();
-        foreach (var item in Items)
-        {
-            item.PreviewBitmap = null;
-            item.PreviewBitmapLarge = null;
-            item.IsPreviewPending = false;
-        }
+        // 文本没变，只是用户想强制重出图：重投一次大图渲染即可。
+        InvalidatePreviews();
     }
 
     private bool CanCompareText() => Items.Count > 0;

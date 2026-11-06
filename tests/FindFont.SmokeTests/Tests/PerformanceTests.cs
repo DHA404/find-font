@@ -94,8 +94,9 @@ internal static class PerformanceTests
     /// <summary>首屏预热：行数落在视口区间内，且小样本请求不会退化成串行等待。</summary>
     internal static void TestPrewarmCoversViewport()
     {
-        Check(MainViewModel.PrewarmRows is >= 8 and <= 24,
-            $"首屏预热行数应在 8–24 之间，实际 {MainViewModel.PrewarmRows}");
+        // 多列布局下一行有 2–3 个瓦片，6 行已覆盖 880px 高的首屏。
+        var rows = MainViewModel.PrewarmRows;
+        Check(rows >= 4 && rows <= 24, $"首屏预热行数应在 4–24 之间，实际 {rows}");
 
         var vm = new MainViewModel();
         var items = new List<FontItem>();

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Media.Animation;
 using FindFont.App.Helpers;
 using FindFont.App.Models;
@@ -31,6 +32,13 @@ public partial class MainWindow : Window
         ViewModel.FilterApplied += OnFilterApplied;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         DpiChanged += OnDpiChanged;
+
+        // 瓦片是模板生成的，等 ListBox 的 SelectionChanged 只会拿到「行」，
+        // 拿不到被点的是行里哪一个字体；所以在隧道路由上直接截鼠标左键。
+        FontRowList.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent,
+            new MouseButtonEventHandler(OnTileMouseDown), handledEventsToo: true);
+
+        SizeChanged += OnWindowSizeChanged;
     }
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
@@ -41,6 +49,10 @@ public partial class MainWindow : Window
 
         // 先把 DPI 报给渲染层：高分屏上按 96 出图再被系统拉伸会发虚。
         RenderDpi.Track(this);
+
+        // 列数与瓦片宽度必须在第一批位图请求之前定下来，
+        // 否则首帧会按兜底宽度渲染一批马上作废的位图。
+        RefreshTileMetrics();
 
         // 窗口入场：从 0.85 收到 1，只做半拍。整块内容淡出淡入会让用户
         // 觉得「软件在启动」，而首帧本来就有内容，直接给足更快。
@@ -80,6 +92,13 @@ public partial class MainWindow : Window
         {
             QueueEntrance();
         }
+
+        // 右栏展开/收起会改变列表可用宽度，列数与瓦片宽度得跟着重算。
+        if (e.PropertyName == nameof(MainViewModel.IsDetailVisible))
+        {
+            Dispatcher.BeginInvoke(new Action(RefreshTileMetrics),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
     }
 
     private void OnFilterApplied(object? sender, EventArgs e) => QueueEntrance();
@@ -103,9 +122,9 @@ public partial class MainWindow : Window
         // 只遍历已实现的容器：全表 1333 次 ContainerFromIndex 会在虚拟化下白跑一遍，
         // 连续若干次取不到就说明已经走到未实现区域，直接停下。
         var misses = 0;
-        for (var i = 0; i < FontList.Items.Count; i++)
+        for (var i = 0; i < FontRowList.Items.Count; i++)
         {
-            if (FontList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem container)
+            if (FontRowList.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem container)
             {
                 if (++misses > 4) break;
                 continue;
@@ -141,22 +160,14 @@ public partial class MainWindow : Window
         move.BeginAnimation(TranslateTransform.XProperty, slide);
     }
 
-    private void OnFontSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is not ListBox listBox) return;
-
-        var selected = new List<FontItem>();
-        foreach (var item in listBox.SelectedItems)
-        {
-            if (item is FontItem font) selected.Add(font);
-        }
-
-        ViewModel.UpdateSelection(selected);
-    }
-
     /// <summary>双击样本行直接放大对比（单个字体也允许）。</summary>
     private void OnSpecimenDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (FindFontItem(e.OriginalSource) is { } item && !item.IsTileSelected)
+        {
+            ViewModel.ToggleTileSelection(item, ctrl: false, shift: false);
+        }
+
         if (ViewModel.SelectedFonts.Count == 0) return;
         OpenCompareWindow();
     }
@@ -211,11 +222,18 @@ public partial class MainWindow : Window
                 ViewModel.ClearSearchCommand.Execute(null);
                 SearchBox.Focus();
             }
-            else if (FontList.SelectedItems.Count > 0)
+            else if (ViewModel.SelectedFonts.Count > 0)
             {
-                FontList.SelectedItems.Clear();
+                ViewModel.ClearTileSelection();
             }
 
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            SelectAllVisible();
             e.Handled = true;
             return;
         }

@@ -16,6 +16,7 @@ public partial class MainViewModel
     /// <para>
     /// 渲染走多线程池，12 行并发冷出图约 150 ms（串行要 1.1 s）。这里不等结果，
     /// 只是把请求早早排进队列，等虚拟化真正实例化容器时缓存命中。
+    /// 多列布局下一行有 Columns 个瓦片，预热按行数算、按瓦片请求。
     /// </para>
     /// </summary>
     internal void PrewarmFirstScreen(int rows = PrewarmRows)
@@ -24,10 +25,11 @@ public partial class MainViewModel
         if (string.IsNullOrWhiteSpace(text)) return;
 
         var size = PreviewFontSize;
-        var count = Math.Min(rows, VisibleFonts.Count);
+        var columns = Math.Max(1, Columns);
+        var count = Math.Min(rows * columns, VisibleFonts.Count);
         for (var i = 0; i < count; i++)
         {
-            VisibleFonts[i].RequestSmallPreview(text, size, PrewarmWidth, PrewarmHeight);
+            VisibleFonts[i].RequestTilePreview(text, size, TileSampleHeight);
         }
     }
 
@@ -89,8 +91,10 @@ public partial class MainViewModel
             item.RequestLargePreview(PreviewText, PreviewFontSize, LargePreviewWidth, LargePreviewHeight);
     }
 
+    /// <summary>回收大样本位图：既有本批选中的，也有上一批残留的。</summary>
     private void ReleaseLargePreviews()
     {
+        foreach (var item in SelectedFonts) item.ReleaseLargePreview();
         foreach (var item in _lastLargeSelected) item.ReleaseLargePreview();
         _lastLargeSelected.Clear();
     }

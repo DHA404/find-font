@@ -46,7 +46,15 @@ public sealed class FontToImageConverter : IMultiValueConverter
 
         var width = PixelWidth;
         var height = PixelHeight;
-        if (parameter is string p && p.Contains('x'))
+
+        // "tile" 是多列瓦片模式：宽由当前列宽决定（ViewModel 已按 32px 桶量化），
+        // 高固定为瓦片样本高度。这样拖动窗口时只会落进有限几个尺寸档。
+        if (parameter is "tile")
+        {
+            width = item.TileWidth >= 32 ? item.TileWidth : PixelWidth;
+            height = ViewModels.MainViewModel.TileSampleHeight;
+        }
+        else if (parameter is string p && p.Contains('x'))
         {
             var parts = p.Split('x');
             if (parts.Length == 2

@@ -208,6 +208,9 @@ public partial class MainViewModel
         // 一次 Reset 而不是上千次 Add。
         VisibleFonts.ReplaceAll(matches);
 
+        // 多列布局：把结果按当前列数编成行，列表绑的是 VisibleRows。
+        RebuildRows();
+
         // 新出现的行如果上一次已经量过，直接把缓存结果补上，不用等下一轮检测。
         SyncCoverageToVisible();
 
@@ -226,6 +229,7 @@ public partial class MainViewModel
 
         SelectedFonts.Clear();
         SelectionChanged();
+        SyncTileSelection();
 
         // 结果集已经稳定，通知视图播放入场。
         FilterApplied?.Invoke(this, EventArgs.Empty);

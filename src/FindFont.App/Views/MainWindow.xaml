@@ -5,7 +5,7 @@
         xmlns:models="clr-namespace:FindFont.App.Models"
         xmlns:motion="clr-namespace:FindFont.App.Helpers"
         Title="find-font · 本地字体样本册"
-        Width="1600" Height="1000" MinWidth="1280" MinHeight="780"
+        Width="1360" Height="880" MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Paper}"
         UseLayoutRounding="True"
@@ -27,7 +27,7 @@
         </Grid.RowDefinitions>
 
         <!-- 命令条：标题 + 计数在左，样本文字/搜索/字号在右 -->
-        <Grid Grid.Row="0" Margin="32,24,32,20">
+        <Grid Grid.Row="0" Margin="22,20,22,18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="3*" />
@@ -35,7 +35,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,40,0">
+            <StackPanel Grid.Column="0" VerticalAlignment="Bottom" Margin="0,0,28,0">
                 <TextBlock Text="find-font"
                            FontFamily="{StaticResource DisplayFace}"
                            FontSize="{StaticResource TitleSize}" Foreground="{StaticResource Ink}" />
@@ -56,25 +56,25 @@
                          ToolTip="所有字体的样本会随输入实时重渲染" />
             </StackPanel>
 
-            <StackPanel Grid.Column="2" Margin="24,0,0,0">
+            <StackPanel Grid.Column="2" Margin="18,0,0,0">
                 <TextBlock Text="搜索" Style="{StaticResource SectionLabel}" />
                 <TextBox x:Name="SearchBox" Style="{StaticResource FieldTextBox}"
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          ToolTip="字体名、文件名或样式名，停止输入 300 ms 后筛选（Ctrl+F 聚焦）" />
             </StackPanel>
 
-            <StackPanel Grid.Column="3" Margin="24,0,0,0" VerticalAlignment="Bottom">
+            <StackPanel Grid.Column="3" Margin="18,0,0,0" VerticalAlignment="Bottom">
                 <TextBlock Text="字号" Style="{StaticResource SectionLabel}" />
-                <ComboBox Width="108" Style="{StaticResource FieldComboBox}"
+                <ComboBox Width="96" Style="{StaticResource FieldComboBox}"
                           ItemsSource="{Binding FontSizeOptions}"
                           SelectedItem="{Binding PreviewFontSize}" />
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="32,0" />
+        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="22,0" />
 
         <!-- 文件头发丝进度条：加载时出现，不占用布局高度 -->
-        <ProgressBar Grid.Row="1" Height="3" VerticalAlignment="Top" Margin="32,0"
+        <ProgressBar Grid.Row="1" Height="3" VerticalAlignment="Top" Margin="22,0"
                      Minimum="0" Maximum="1" Value="{Binding LoadProgress}"
                      Foreground="{StaticResource Proof}" Background="Transparent"
                      BorderThickness="0"
@@ -82,24 +82,24 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="272" />
+                <ColumnDefinition Width="208" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- 左：索引栏。分类计数 + 风格开关 + 主动作 -->
             <Border Grid.Column="0" BorderBrush="{StaticResource Rule}" BorderThickness="0,0,1,0">
-                <Grid Margin="0,22,0,18">
+                <Grid Margin="0,18,0,16">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- 索引栏内容会随功能增加而变长，套一层滚动，避免末尾控件被裁掉。 -->
-                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="分类" Style="{StaticResource SectionLabel}" Margin="22,0,0,10" />
+                    <!-- 分类固定四项，高度自适应；行高由 IndexRow 决定，不会随字体数量变化。 -->
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="分类" Style="{StaticResource SectionLabel}" Margin="18,0,0,10" />
                         <ListBox ItemsSource="{Binding CategoryFacets}"
                                  SelectedIndex="{Binding SelectedCategoryIndex}"
                                  ItemContainerStyle="{StaticResource IndexRow}"
@@ -115,92 +115,97 @@
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="{StaticResource TextBodySize}"
                                                    Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1" Text="{Binding CountText}" FontSize="{StaticResource TextMetaSize}"
-                                                   Foreground="{StaticResource InkMuted}" VerticalAlignment="Center"
-                                                   Margin="8,0,0,0" />
+                                                   Foreground="{StaticResource InkFaint}" VerticalAlignment="Center" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-
-                        <Border Style="{StaticResource Hairline}" Margin="22,18,22,18" />
-
-                        <!-- 风格与范围合成一组方块开关：两者都是「只看某一类」，
-                             分开写会多出一整段标题与分隔线，索引栏就装不下了。 -->
-                        <TextBlock Text="风格 · 范围" Style="{StaticResource SectionLabel}" Margin="22,0,0,12" />
-                        <WrapPanel Margin="18,0,18,0">
-                            <CheckBox Content="全部" Style="{StaticResource ChipToggle}" Margin="4,0,8,8"
-                                      IsChecked="{Binding IsStyleAll}" />
-                            <CheckBox Content="常规" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding IsStyleRegular}" />
-                            <CheckBox Content="粗体" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding IsStyleBold}" />
-                            <CheckBox Content="斜体" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding IsStyleItalic}" />
-                            <CheckBox Content="只看失效登记" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding ShowBrokenOnly}" />
-                            <CheckBox Content="只看缺映射" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding ShowMissingMapOnly}" />
-                            <CheckBox Content="只看空字形" Style="{StaticResource ChipToggle}" Margin="0,0,8,8"
-                                      IsChecked="{Binding ShowEmptyGlyphOnly}" />
-                        </WrapPanel>
-
                     </StackPanel>
+
+                    <!-- 风格与范围固定在动作区上方：这些开关是常用动作，不能被滚动裁成半行。 -->
+                    <StackPanel Grid.Row="1">
+                        <Border Style="{StaticResource Hairline}" Margin="18,10,18,12" />
+                        <TextBlock Text="风格 · 范围" Style="{StaticResource SectionLabel}" Margin="18,0,0,8" />
+                        <UniformGrid Margin="14,0,14,0" Columns="2">
+                            <CheckBox Content="全部" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
+                                      IsChecked="{Binding IsStyleAll}" />
+                            <CheckBox Content="常规" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
+                                      IsChecked="{Binding IsStyleRegular}" />
+                            <CheckBox Content="粗体" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
+                                      IsChecked="{Binding IsStyleBold}" />
+                            <CheckBox Content="斜体" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
+                                      IsChecked="{Binding IsStyleItalic}" />
+                            <CheckBox Content="失效登记" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
+                                      IsChecked="{Binding ShowBrokenOnly}" />
+                            <CheckBox Content="缺映射" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
+                                      IsChecked="{Binding ShowMissingMapOnly}" />
+                            <CheckBox Content="空字形" Style="{StaticResource ChipToggle}"
+                                      IsChecked="{Binding ShowEmptyGlyphOnly}" />
+                        </UniformGrid>
+                    </StackPanel>
+
+                    <!-- 动作区在 700px 高的窗口里放不全，交给滚动条；排序钉在它顶端。 -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="10,12,10,0">
+                            <TextBlock Text="排序" Style="{StaticResource SectionLabel}" Margin="8,0,0,8" />
+                            <ComboBox Style="{StaticResource FieldComboBox}" Margin="8,0,8,12"
+                                      ItemsSource="{Binding SortOptions}"
+                                      SelectedIndex="{Binding SelectedSortIndex}" />
+                            <Border Style="{StaticResource Hairline}" Margin="8,0,8,10" />
+                            <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
+                                    Click="OnCompareClick"
+                                    IsEnabled="{Binding CanCompareOrSingle}"
+                                    HorizontalAlignment="Stretch" Margin="8,0,8,6" />
+                            <Button Content="从文件安装" Style="{StaticResource QuietButton}" Margin="8,0"
+                                    HorizontalAlignment="Stretch" Command="{Binding InstallFromFilesCommand}" />
+                            <Button Content="卸载字体" Style="{StaticResource QuietButton}" Margin="8,0"
+                                    HorizontalAlignment="Stretch" IsEnabled="{Binding CanUninstall}"
+                                    Command="{Binding UninstallSelectedCommand}" />
+                            <Button Content="清理失效登记" Style="{StaticResource QuietButton}" Margin="8,0"
+                                    HorizontalAlignment="Stretch" Command="{Binding CleanBrokenCommand}" />
+                            <Button Content="重新扫描" Style="{StaticResource QuietButton}" Margin="8,0"
+                                    HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}" />
+                            <Button Content="关于 / 环境信息" Style="{StaticResource QuietButton}" Margin="8,0,8,10"
+                                    HorizontalAlignment="Stretch" Command="{Binding ShowAboutCommand}" />
+                        </StackPanel>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="1" Margin="12,16,12,0">
-                        <!-- 排序常驻在动作区上方：列表长短都要立刻能切，不该跟着滚动区一起被裁。 -->
-                        <TextBlock Text="排序" Style="{StaticResource SectionLabel}" Margin="8,0,0,8" />
-                        <ComboBox Style="{StaticResource FieldComboBox}" Margin="8,0,8,14"
-                                  ItemsSource="{Binding SortOptions}"
-                                  SelectedIndex="{Binding SelectedSortIndex}" />
-                        <Border Style="{StaticResource Hairline}" Margin="8,0,8,12" />
-                        <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
-                                Click="OnCompareClick"
-                                IsEnabled="{Binding CanCompareOrSingle}"
-                                HorizontalAlignment="Stretch" Margin="8,0,8,6" />
-                        <Button Content="从文件安装" Style="{StaticResource QuietButton}"
-                                Command="{Binding InstallFromFilesCommand}"
-                                HorizontalAlignment="Stretch" Margin="8,0" />
-                        <Button Content="卸载字体" Style="{StaticResource QuietButton}"
-                                Command="{Binding UninstallSelectedCommand}"
-                                IsEnabled="{Binding CanUninstall}"
-                                HorizontalAlignment="Stretch" Margin="8,0" />
-                        <Button Content="清理失效登记" Style="{StaticResource QuietButton}"
-                                Command="{Binding CleanBrokenCommand}"
-                                HorizontalAlignment="Stretch" Margin="8,0" />
-                        <Button Content="重新扫描" Style="{StaticResource QuietButton}"
-                                Command="{Binding RefreshCommand}"
-                                HorizontalAlignment="Stretch" Margin="8,0" />
-                        <Button Content="关于 / 环境信息" Style="{StaticResource QuietButton}"
-                                Command="{Binding ShowAboutCommand}"
-                                HorizontalAlignment="Stretch" Margin="8,0" />
-                        <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}" TextWrapping="Wrap"
-                                   Foreground="{StaticResource InkMuted}" Margin="8,12,8,0" />
-                        <Button Content="打开日志" Style="{StaticResource QuietButton}"
-                                Command="{Binding OpenLogFolderCommand}"
-                                HorizontalAlignment="Left" Margin="0,8,0,0" Padding="8,4" />
+                    <!-- 状态栏固定在最底部：扫描/补名进度随时可见，不会被动作区滚动带走。 -->
+                    <StackPanel Grid.Row="3" Margin="10,6,10,0">
+                        <Border Style="{StaticResource Hairline}" Margin="8,0,8,8" />
+                        <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}"
+                                   TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource InkMuted}" Margin="8,0,8,0" />
+                        <Button Content="打开日志" Style="{StaticResource QuietButton}" Margin="0,4,0,0"
+                                Padding="8,4" HorizontalAlignment="Left" Command="{Binding OpenLogFolderCommand}" />
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- 中：样本列表 -->
             <Grid Grid.Column="1">
-                <ListBox x:Name="FontList"
-                         ItemsSource="{Binding VisibleFonts}"
-                         SelectionMode="Extended"
+                <!--
+                    多列瓦片列表：每一项是一行（FontRow），行内并排 N 个字体。
+                    选中不再由 ListBox 承担（SelectionMode=Single 且从不落到行上），
+                    而是由每个瓦片自己的 IsTileSelected 表达，点击在 code-behind 里分派。
+                -->
+                <ListBox x:Name="FontRowList"
+                         ItemsSource="{Binding VisibleRows}"
+                         SelectionMode="Single"
+                         Focusable="False"
                          BorderThickness="0"
                          Background="Transparent"
-                         Padding="0,8,0,0"
+                         Padding="0,6,0,0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.CanContentScroll="True"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
-                         VirtualizingPanel.CacheLength="1,1"
+                         VirtualizingPanel.CacheLength="2,1"
                          VirtualizingPanel.CacheLengthUnit="Item"
-                         ItemContainerStyle="{StaticResource SpecimenRow}"
-                         ItemTemplate="{StaticResource SpecimenRowTemplate}"
-                         SelectionChanged="OnFontSelectionChanged"
+                         ItemContainerStyle="{StaticResource TileRow}"
+                         ItemTemplate="{StaticResource FontRowTemplate}"
                          MouseDoubleClick="OnSpecimenDoubleClick">
 
                     <ListBox.ItemsPanel>
@@ -223,9 +228,9 @@
                     Background="{StaticResource SheetRaised}"
                     BorderBrush="{StaticResource Rule}" BorderThickness="1,0,0,0"
                     Visibility="{Binding IsDetailVisible, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="28,24,28,24">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20,24,20">
                     <StackPanel>
-                        <TextBlock Text="档案" FontFamily="{StaticResource DisplayFace}" FontSize="20"
+                        <TextBlock Text="档案" FontFamily="{StaticResource DisplayFace}" FontSize="19"
                                    Foreground="{StaticResource Ink}" Margin="0,0,0,16" />
 
                         <TextBlock Text="家族" Style="{StaticResource ColophonLabel}" />

@@ -22,13 +22,14 @@ public partial class MainViewModel : ObservableObject
     public const int LargePreviewWidth = 1120;
     public const int LargePreviewHeight = 220;
 
-    /// <summary>首屏预热行数：约等于 1000px 高窗口能同时看到的行数。</summary>
-    internal const int PrewarmRows = 12;
+    /// <summary>首屏预热行数：约等于 880px 高窗口能同时看到的行数。</summary>
+    internal const int PrewarmRows = 6;
 
-    /// <summary>预热位图尺寸，与 SpecimenRowTemplate 里小样本一致。</summary>
+    /// <summary>瓦片样本的像素高度，与 TileSampleHeight 保持一致（转换器按它渲染）。</summary>
+    internal const int TileSampleHeight = 96;
+
+    /// <summary>预热位图宽度上限，实际宽度由列宽决定（见 TileWidth）。</summary>
     internal const int PrewarmWidth = 1120;
-
-    internal const int PrewarmHeight = 92;
 
     /// <summary>界面上显示的版本号，来自 version.txt（经程序集元数据带过来）。</summary>
     public string AppVersion => Helpers.AppInfo.Version;
@@ -63,7 +64,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private string _previewText = "The quick brown fox 0123 你好，世界";
-    [ObservableProperty] private double _previewFontSize = 36;
+    [ObservableProperty] private double _previewFontSize = 28;
     [ObservableProperty] private int _selectedCategoryIndex;
     [ObservableProperty] private int _selectedStyleIndex;
     [ObservableProperty] private int _selectedSortIndex;

@@ -101,11 +101,13 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 
 ## 界面
 
-默认 1600×1000（最小 1280×780），三栏：索引栏 272px、样本列表、选中时出现的「档案」面板 380px。
+默认 1360×880（最小 1080×700），三栏：索引栏 208px、样本瓦片网格、选中时出现的「档案」面板 300px。
+
+字体列表是**多列瓦片网格**而不是单列长条：瓦片宽由列表实际可用宽度算出并向下量化到 32px 桶，列数 1–3 随宽度收敛（右栏展开时列表变窄，会主动退回两列而不是把第三列挤出血）。窗口缩放到 1080 宽时仍是两列，700 宽以下退成一列。列宽量化是因为每变一次尺寸就要重新渲染可见区，量化后拖动窗口只会落进有限几档。
 
 视觉上只有一套灰阶 + 一个强调色：纸灰底 `#ECEDEF`、面板 `#F6F7F8`、墨色 `#101215`、发丝线 `#CDD1D6`，以及唯一用来表达「被选中 / 有焦点 / 已失效」的品红 `#C4005E`。界面字体是 Cambria（标题、样本元数据）与 Segoe UI（控件），全部无圆角，靠 1px 线分层而不是靠卡片阴影。
 
-样本行默认 92px，选中后容器高度动画长到 220px，小样本淡出、大样本延迟 60 ms 淡入——字形始终垂直居中，观感是「行张开」而不是换图。筛选结果逐行错开入场（每行延迟 12 ms、封顶 180 ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
+瓦片样本区固定 96px 高、字形垂直居中，选中不做高度动画（多列网格里行长高会连带整行重排），只把底色抬到 `#FFFFFF` 并在左侧点亮一条 2px 品红竖条——选中状态在一个 340px 宽的瓦片里足够醒目，不值得为它牺牲滚动稳定性。筛选结果逐行错开入场（每行延迟 12 ms、封顶 180 ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
 
 窗口材质走 `DWMWA_SYSTEMBACKDROP_TYPE`（Win11 22H2+），旧的 `DWMWA_MICA_EFFECT` 与 Win10 的 `SetWindowCompositionAttribute` 逐级回退，全部失败时留在不透明纸色上；材质生效时内容层铺 `#F0ECEDEF` 半透明纸色，保证正文对比度不随壁纸变化。所有动画都读 `SystemParameters.ClientAreaAnimation`——系统关掉动画即全部退化为瞬时切换。
 
@@ -119,7 +121,9 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | --- | --- | --- |
 | 绑定 `FontFamily` 会让 WPF 加载并常驻上千套字形，内存暴涨 | XAML 里**禁止**出现 `FontFamily` 绑定；改用 `FormattedText` + `RenderTargetBitmap` 在独立 STA 线程离屏出图，缓存为冻结的 `BitmapSource` | `Services/FontRenderCache.cs`、`Converters/FontToImageConverter.cs` |
 | 上千个字体逐一解析会卡住界面 | 先同步读注册表立即出列表，再后台异步补全本地化名；补名直读 sfnt 表，约 0.44 ms/文件 | `Services/FontScanner.cs`、`Helpers/FontMetadataReader.cs` |
-| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling` + `CacheLength=1,1`；**只有被选中的行才请求大样本**，小样本按 96 MB 字节预算做 LRU 淘汰 | `Views/MainWindow.xaml`、`Themes/Templates.xaml` |
+| 滚动时反复渲染导致掉帧 | `VirtualizingStackPanel` + `VirtualizationMode=Recycling` + `CacheLength=2,1`；瓦片样本按 96 MB 字节预算做 LRU 淘汰，大样本只在对比窗口里按需请求 | `Views/MainWindow.xaml`、`Themes/Templates.xaml` |
+| 多列网格里每张瓦片都按自己的宽度渲染，拖窗口会产生无数种尺寸 | 瓦片宽度量化到 32px 桶，列数按列表实际可用宽度收敛到 1–3 列，尺寸变化只在跨桶时发生一次 | `ViewModels/MainViewModel.Layout.cs` |
+| 把「同一字体有更新请求」的旧渲染直接取消，会让被取消的那张图永远回不到界面 | 只尊重调用方显式传入的取消令牌，不再按请求序号丢弃；重复渲染交给在途去重与位图缓存 | `Services/FontRenderCache.cs` |
 | 输入每个字符都过滤一次会卡顿 | 300 ms 防抖 + 单遍扫描同时产出结果与四个分类计数（`ReplaceAll` 只发一次 Reset）+ 预拼小写 `SearchHaystack` | `ViewModels/MainViewModel.cs` |
 | 安装/卸载需要管理员权限，但主程序不该整体提权 | 主进程普通权限，`Verb=runas` 拉起同一个 exe 的微进程只做文件与注册表操作 | `Services/ElevationHost.cs` |
 | 注册表指向不存在文件的条目会让扫描崩溃 | 缺失文件生成占位项（品红标记、可一键清理），解析失败静默捕获 | `Services/FontScanner.cs` |
@@ -230,11 +234,15 @@ src/FindFont.App/
   ViewModels/MainViewModel.cs     状态字段、集合、计算属性
   ViewModels/MainViewModel.Filtering.cs   扫描加载、防抖搜索、筛选、分类计数
   ViewModels/MainViewModel.Preview.cs     首屏预热与预览位图生命周期
+  ViewModels/MainViewModel.Layout.cs      多列分行、瓦片宽度、瓦片选中
   ViewModels/MainViewModel.Coverage.cs    缺字检测的防抖、批量量测与结果回填
   ViewModels/MainViewModel.Commands.cs    选择、安装、卸载、清理、打开目录
   ViewModels/MainViewModel.Settings.cs    设置往返、DPI 刷新、关于/日志命令
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
+  Models/FontRow.cs               一行瓦片的数据载体
+  Models/FontItem.Tile.cs         瓦片选中标记与请求入口
   Views/MainWindow.xaml(.cs)      主窗口
+  Views/MainWindow.Tiles.cs       瓦片点击、列宽刷新、全选
   Views/CompareWindow.xaml(.cs)   对比窗口
   Views/AboutWindow.xaml(.cs)     关于：环境信息一键复制
 tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试（TestRunner + Tests/ 分层）
@@ -258,7 +266,7 @@ build.cmd test
 8. `MainViewModel` 真实加载后验证搜索、分类筛选、风格筛选与清空恢复
 9. 1 万条字体的压测：装载、搜索、筛选、清空恢复各自的耗时上限
 10. `CompareViewModel` 最多三栏上限与移除后栏数变化
-11. 界面资源与主窗口可构造，分类索引行计数与选中分类下的可见项数一致，画布不小于 1600×1000
+11. 界面资源与主窗口可构造，分类索引行计数与选中分类下的可见项数一致，画布不小于 1300×860
 12. 动效助手遵循系统设置：`Motion.Evaluate(true/false)` 返回值与三档时长排序
 13. 窗口材质回退不抛异常：`WindowBackdrop.Apply` 在任意系统版本上都返回合法档位
 14. 尺寸与模板资源：默认画布、最小时宽、模板键存在性
@@ -297,8 +305,11 @@ build.cmd test
 47. CFF 字面不判空字形：只认「有 `CFF ` 表且没有 `loca`」的真 CFF 字体，断言其不宣称支持
 48. 字形覆盖检测复用缓存：同一探测集第二次不再读盘，结果可从缓存取回
 49. 缺字筛选只留对应类型：「只看缺映射」「只看空字形」各自只留对应项，两个都开是交集（未检测项不算通过）
+50. 多列分行与筛选顺序一致：37 条按 2/3/1 列切出的行数与末行瓦片数正确，展平后顺序与源集合逐项相同
+51. 列数随窗口宽度收敛：1360/1120 → 3 列，1080/852 → 2 列，700/470 → 1 列；瓦片宽度始终 ≥220 且是 32 的整数倍；宽度微调不改变结果
+52. 瓦片选中驱动既有筛选语义：独占、Ctrl 切换、Shift 连选、清空都落到同一个选中集合上
 
-当前全部通过（49 项）。
+当前全部通过（52 项）。
 
 ## 启动与首屏
 

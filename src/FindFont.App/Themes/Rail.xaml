@@ -92,24 +92,40 @@
                           SelectedIndex="{Binding SelectedSortIndex}" />
             </StackPanel>
 
-            <!-- 动作：两列并排，880 高的窗口里不需要滚动 -->
-            <StackPanel Grid.Row="4" Margin="8,16,8,0" VerticalAlignment="Top">
+            <!-- 动作区：窗口再矮也只是滚动，不会被裁掉半行字 -->
+            <ScrollViewer Grid.Row="4" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="8,4,8,0" VerticalAlignment="Top">
                 <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
                         Command="{Binding CompareSelectedCommand}"
                         IsEnabled="{Binding CanCompareOrSingle}"
                         HorizontalAlignment="Stretch" Margin="4,0,4,8" />
 
+                <!-- 安装成对：装给我的不需要权限，装给所有用户要 UAC -->
                 <UniformGrid Columns="2" Margin="0,0,0,2">
                     <Button Style="{StaticResource RailButton}" Margin="0,0,2,0"
-                            HorizontalAlignment="Stretch" Command="{Binding InstallFromFilesCommand}"
-                            ToolTip="从文件安装字体">
+                            HorizontalAlignment="Stretch" Command="{Binding InstallForCurrentUserCommand}"
+                            ToolTip="装进当前用户字体目录，不需要管理员权限">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
                                   Data="{StaticResource IconUpload}" />
-                            <TextBlock Text="安装" Style="{StaticResource IconLabel}" />
+                            <TextBlock Text="装给我" Style="{StaticResource IconLabel}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource RailButton}" Margin="2,0,0,0"
+                            HorizontalAlignment="Stretch" Command="{Binding InstallFromFilesCommand}"
+                            ToolTip="装进系统字体目录，需要管理员权限">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconUpload}" />
+                            <TextBlock Text="所有人" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <!-- 维护对：卸载选中的那一个 / 清掉指向不存在文件的登记 -->
+                <UniformGrid Columns="2">
+                    <Button Style="{StaticResource RailButton}" Margin="0,0,2,0"
                             HorizontalAlignment="Stretch" IsEnabled="{Binding CanUninstall}"
                             Command="{Binding UninstallSelectedCommand}"
                             ToolTip="卸载选中的字体">
@@ -119,28 +135,19 @@
                             <TextBlock Text="卸载" Style="{StaticResource IconLabel}" />
                         </StackPanel>
                     </Button>
-                </UniformGrid>
-
-                <!-- 两个低频动作并排放，给上面三个常用动作留出高度 -->
-                <UniformGrid Columns="2">
-                    <Button Style="{StaticResource RailButton}" Margin="0,0,2,0"
-                            HorizontalAlignment="Stretch" Command="{Binding CleanBrokenCommand}">
+                    <Button Style="{StaticResource RailButton}" Margin="2,0,0,0"
+                            HorizontalAlignment="Stretch" Command="{Binding CleanBrokenCommand}"
+                            ToolTip="只删注册表里指向缺失文件的登记">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
                                   Data="{StaticResource IconEraser}" />
                             <TextBlock Text="清理失效" Style="{StaticResource IconLabel}" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource RailButton}" Margin="2,0,0,0"
-                            HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
-                                  Data="{StaticResource IconRefresh}" />
-                            <TextBlock Text="重新扫描" Style="{StaticResource IconLabel}" />
-                        </StackPanel>
-                    </Button>
                 </UniformGrid>
+
             </StackPanel>
+            </ScrollViewer>
 
             <!-- 状态栏钉死在底部：进度随时可见，不被动作区滚走 -->
             <StackPanel Grid.Row="5" Margin="0,16,0,0">
@@ -148,21 +155,25 @@
                 <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}"
                            TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis"
                            Foreground="{StaticResource InkMuted}" Margin="16,0,16,8" />
+                <!-- 页脚三个动作：重扫带文字，关于/日志只留图标（208px 宽放不下四个词） -->
                 <StackPanel Orientation="Horizontal" Margin="8,0,8,0">
-                    <Button Style="{StaticResource RailButton}" Command="{Binding ShowAboutCommand}">
+                    <Button Style="{StaticResource RailButton}" Command="{Binding RefreshCommand}"
+                            ToolTip="重新读取注册表并刷新预览">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
-                                  Data="{StaticResource IconInfo}" />
-                            <TextBlock Text="关于" Style="{StaticResource IconLabel}" />
+                                  Data="{StaticResource IconRefresh}" />
+                            <TextBlock Text="重扫" Style="{StaticResource IconLabel}" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource RailButton}" Margin="4,0,0,0"
-                            Command="{Binding OpenLogFolderCommand}">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
-                                  Data="{StaticResource IconFileText}" />
-                            <TextBlock Text="日志" Style="{StaticResource IconLabel}" />
-                        </StackPanel>
+                    <Button Style="{StaticResource RailButton}" Margin="4,0,0,0" Padding="8,6"
+                            Command="{Binding ShowAboutCommand}" ToolTip="关于与启动耗时">
+                        <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                              Data="{StaticResource IconInfo}" />
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" Margin="2,0,0,0" Padding="8,6"
+                            Command="{Binding OpenLogFolderCommand}" ToolTip="打开日志目录">
+                        <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                              Data="{StaticResource IconFileText}" />
                     </Button>
                 </StackPanel>
             </StackPanel>

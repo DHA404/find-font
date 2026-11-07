@@ -51,7 +51,9 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 | **命中高亮** | 搜索结果的元数据行下方单独一行，命中片段用品格红加下划线标出，一眼看出为什么它被搜出来 |
 | **多字体对比** | 按住 Ctrl 选 1–3 个字体同屏对照，改对比文字立刻重渲染 |
 | **自定义样本文字** | 顶部输入框改一次，整个列表与对比窗口同步 |
-| **安装 / 卸载** | 主程序保持普通权限，仅文件与注册表操作走 UAC 提权微进程；**卸载时只删本工具装过的文件**（进回收站），系统自带字体只清登记 |
+| **安装 / 卸载** | 装「给我」（写 `HKCU` + `%LOCALAPPDATA%\Microsoft\Windows\Fonts`，**不需要管理员权限**）或装「所有人」（写 `HKLM` + 系统字体目录，走 UAC 提权微进程）；**卸载时只删本工具装过的文件**（进回收站），系统自带字体只清登记 |
+| **可变字体坐标轴** | 读 `fvar` 表，把 `wght 100–900`、`wdth 75–100` 这类轴写进右栏「档案」；静态字体不显示这一段 |
+| **嵌入许可位** | 读 OS/2 `fsType`，在「字面」一行标出「禁止嵌入 / 仅可预览与打印 / 可安装（允许嵌入） / 仅位图嵌入」，并注明是否禁止子集化；**只提示不阻断**，装不装由你和授权方定 |
 | **拖放安装** | 把字体文件拖到窗口任意位置即可安装；拖拽悬停时就按「有没有能装的格式」切换光标，装不了的文件会说明原因 |
 | **多字面容器** | `.ttc/.otc` 里每个字面各占一行，标「第 2/3 面」，`simsun.ttc` 的宋体与新宋体都能单独预览 |
 | **字形缺失检测** | 拿当前样本文字去每个字体里逐个码位核对，分「cmap 里没有这个字」与「有映射但字形是空的」两类报出来，并列出缺了哪几个字 |
@@ -207,7 +209,8 @@ src/FindFont.App/
   Helpers/FontMetadataReader.Reading.cs  一次打开读完整个文件的全部字面
   Helpers/SfntReader.cs           sfnt/ttcf 容器、表目录、big-endian tag
   Helpers/NameTableParser.cs      name 表记录与本地化名评分
-  Helpers/LanguageInference.cs    按名字关键词推断 CJK 归属，不解析字符表
+  Helpers/LanguageInference.cs    按字符覆盖位判 CJK 归属，缺表时回落到名字关键词
+  Helpers/VariationAxesParser.cs  读 fvar 轴，输出 "wght 100–900" 这样的可读串
   Helpers/CmapReader.cs           cmap 子表选择与 fmt 0/4/6/12 查表
   Helpers/GlyphCoverageReader.cs  逐码位核对：cmap 有无映射 + glyf 轮廓是否为空
   Models/GlyphCoverage.cs         缺字结论（四类 + 缺失字符清单）
@@ -224,8 +227,9 @@ src/FindFont.App/
   Services/FontRenderCache.cs     字节预算 LRU + 并发去重 + 过期请求丢弃 + 线程池调度
   Services/FontRenderCache.Pool.cs        2–4 条 STA 渲染线程，按缓存键哈希分派
   Services/FontRenderCache.Rendering.cs   FormattedText / RenderTargetBitmap / 每线程 Typeface 缓存
-  Services/FontInstaller.cs       安装 / 卸载 / 清理失效登记（仅提权进程执行）
-  Services/FontInstaller.Registry.cs     注册表值名与读写
+  Services/FontInstaller.cs       安装 / 卸载 / 清理失效登记（全用户，提权进程执行）
+  Services/FontInstaller.UserScope.cs    仅当前用户的安装路径：HKCU + 用户字体目录，不提权
+  Services/FontInstaller.Registry.cs     注册表值名与读写（hive 由调用方指定）
   Services/ElevationHost.cs       --install-font 等参数协议的微进程宿主
   Services/AppSettings.cs         settings.json 读写、窗口几何、屏幕可见性校验
   Services/RenderDpi.cs           当前监视器 DPI 的来源
@@ -253,16 +257,21 @@ src/FindFont.App/
   Views/MainWindow.Tiles.cs       瓦片点击、列宽刷新、全选
   Views/CompareWindow.xaml(.cs)   对比窗口
   Views/AboutWindow.xaml(.cs)     关于：环境信息一键复制
-tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试（TestRunner + Tests/ 分层）
+tests/FindFont.SmokeTests/        无第三方依赖的控制台冒烟测试（TestRunner + TestTiers 分 unit/integration/ui + Tests/）
 ```
 
 ## 测试
 
 ```bat
-build.cmd test
+build.cmd test            rem 全部
+build.cmd test unit       rem 只跑纯逻辑（不读本机字体、不开窗口）
+build.cmd test integration
+build.cmd test ui
 ```
 
 测试直接跑真实字体库，不 mock：扫描本机注册表、遍历全部字体文件、实际渲染位图。失败时返回非零退出码，CI 据此拦截。
+
+用例按三层标注（`TestTiers.cs`）：`unit` 是纯逻辑，`integration` 要读本机字体库或临时文件，`ui` 要构造 WPF 窗口解析主题资源。CI 先单独跑 `unit` 再跑全量，这样失败时能立刻分清是逻辑坏了还是环境不同；发布任务跑在 `windows-2022` 与 `windows-latest` 两档上（注册表视图、ttc 数量、DPI 回退在不同系统版本上确实有差别）。
 
 1. `LanguageInference` 关键词推断（中 / 日 / 韩 / 西文 / 空名）
 2. `FontMetadataReader.ContainsCjk` 的 CJK 判定与 null 安全
@@ -319,8 +328,10 @@ build.cmd test
 53. 间距落在 4px 网格：尺寸 token 全部是 4 的整数倍且为正，版心台阶单调（标题 > 面板标题 > 正文 > 元信息）
 54. 文字对比度达到 AA：`Ink` / `InkMuted` / `InkFaint` / `Proof` / `Warn` 在纸色、面板、抬升面板三种底上都 ≥4.5:1
 55. 品红不做药丸底色：样本行模板里 `ProofWash` 出现 0 次，品红只作为文字与裁切线颜色
+56. 用户级安装路径走 HKCU：用户字体目录判定只认 `%LOCALAPPDATA%\Microsoft\Windows\Fonts` 之下，系统目录与空路径都不算
+57. 可变字体坐标轴被解析：在本机找到真可变字体（有 `fvar` 表）时断言轴串非空，Arial 这类静态字体必须为空串，空表输入安全返回
 
-当前全部通过（55 项）。
+当前全部通过（57 项：unit 27 · integration 26 · ui 4）。
 
 ## 启动与首屏
 
@@ -361,9 +372,9 @@ build.cmd test
 发一个新版本是三步：
 
 ```bash
-echo 0.5.0-alpha > version.txt                        # 1. 改版本号
-git commit -am "release: 0.5.0-alpha"                 # 2. 提交
-git tag v0.5.0-alpha && git push origin main --tags   # 3. 打新 tag
+echo 1.0.0 > version.txt                              # 1. 改版本号
+git commit -am "release: 1.0.0"                       # 2. 提交
+git tag v1.0.0 && git push origin main --tags         # 3. 打新 tag
 ```
 
 tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，不一致直接失败，避免「新 tag 顶着旧版本号发出去」。每个版本用独立的新 tag——不要删掉旧 tag 再重建：复用同一个 tag 会让 Release 页面一直显示同一个版本号，也让「这次究竟改了什么」无法追溯。
@@ -378,6 +389,8 @@ tag 触发时 CI 会先校验 `v$(cat version.txt)` 与 tag 名完全一致，�
 - 首次启动（ReadyToRun 缓存未预热、系统文件缓存为空）比后续启动慢；第二次起明显更快。
 - 字形缺失检测只认 `glyf` 轮廓（真 CFF/PostScript 轮廓的 `.otf` 没有 `loca` 表），这类字体只报「无映射」，不判断字形是否为空。
 - 缺字检测的依据是「当前样本文字」这一小组码位，不是整张字符表；它回答的是「我这串字能不能显示出来」，不是「这个字体完整吗」。
+- `fsType` 许可位只做提示：字体文件自己说「禁止嵌入」时，安装仍会进行并附一句提醒——是否可用取决于授权，工具不做执法者。
+- 可变字体只读 `fvar` 的轴范围，不解析 `STAT` 表，也不提供轴滑杆；要看具体某一档，请在样本文字里换字重后另用设计软件。
 
 ## 贡献
 

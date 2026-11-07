@@ -31,6 +31,7 @@ public partial class MainViewModel
         ColophonLanguage = hasCjk ? "中文 / 东亚字符" : "西文";
         ColophonFace = item.FaceLabel;
         ColophonEmbedding = string.IsNullOrWhiteSpace(item.Embedding) ? "—" : item.Embedding;
+        ColophonVariationAxes = item.VariationAxes;
         ColophonCoverage = item.CoverageDetail;
         ColophonCoverageChars = item.CoverageExamples;
         ColophonStatus = item.IsBroken
@@ -52,6 +53,7 @@ public partial class MainViewModel
         ColophonStatus = string.Empty;
         ColophonFace = string.Empty;
         ColophonEmbedding = string.Empty;
+        ColophonVariationAxes = string.Empty;
         ColophonCoverage = string.Empty;
         ColophonCoverageChars = string.Empty;
     }
@@ -102,23 +104,39 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task InstallFromFilesAsync()
     {
+        var files = PickFontFiles("选择要安装的字体文件（所有用户）");
+        if (files is null) return;
+
+        await InstallFilesAsync(files);
+    }
+
+    /// <summary>仅为当前用户安装：不提权，装完只有本用户能看到。</summary>
+    [RelayCommand]
+    private async Task InstallForCurrentUserAsync()
+    {
+        var files = PickFontFiles("选择要安装的字体文件（仅当前用户）");
+        if (files is null) return;
+
+        await InstallFilesAsync(files, forCurrentUser: true);
+    }
+
+    private static string[]? PickFontFiles(string title)
+    {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "选择要安装的字体文件",
+            Title = title,
             Filter = "字体文件|*.ttf;*.otf;*.ttc;*.otc|所有文件|*.*",
             Multiselect = true,
         };
 
-        if (dialog.ShowDialog() != true) return;
-
-        await InstallFilesAsync(dialog.FileNames);
+        return dialog.ShowDialog() == true ? dialog.FileNames : null;
     }
 
     /// <summary>
     /// 安装一批字体文件。文件对话框与拖放共用同一条路径：
     /// 先分拣出系统真正能认的格式，被拒的给出可读原因，而不是静默跳过。
     /// </summary>
-    public async Task InstallFilesAsync(IReadOnlyList<string> files)
+    public async Task InstallFilesAsync(IReadOnlyList<string> files, bool forCurrentUser = false)
     {
         if (files.Count == 0) return;
 
@@ -138,8 +156,10 @@ public partial class MainViewModel
             return;
         }
 
-        StatusText = "正在请求管理员权限安装字体…";
-        var result = await FontInstaller.InstallAsync(accepted);
+        StatusText = forCurrentUser ? "正在为当前用户安装字体…" : "正在请求管理员权限安装字体…";
+        var result = forCurrentUser
+            ? await FontInstaller.InstallForUserAsync(accepted)
+            : await FontInstaller.InstallAsync(accepted);
         var log = result.WasCancelled ? "已取消安装" : result.Log.Trim();
         StatusText = refusals.Count == 0 ? log : $"{log}　（跳过 {refusals.Count} 个不支持的文件）";
 
@@ -171,8 +191,16 @@ public partial class MainViewModel
 
         if (confirm != System.Windows.MessageBoxResult.Yes) return;
 
-        StatusText = $"正在请求管理员权限卸载 {target.FileName}…";
-        var result = await FontInstaller.UninstallAsync(new[] { $"{target.BestName}|{target.FullPath}" });
+        // 用户级字体在 HKCU 与用户目录里，不需要提权也能清干净。
+        var userScope = FontInstaller.IsUserScopePath(target.FullPath);
+        StatusText = userScope
+            ? $"正在卸载当前用户字体 {target.FileName}…"
+            : $"正在请求管理员权限卸载 {target.FileName}…";
+
+        var entry = $"{target.BestName}|{target.FullPath}";
+        var result = userScope
+            ? await FontInstaller.UninstallForUserAsync(new[] { entry })
+            : await FontInstaller.UninstallAsync(new[] { entry });
         StatusText = result.WasCancelled ? "已取消卸载" : result.Log.Trim();
 
         if (result.Success) await LoadAsync();

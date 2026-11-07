@@ -17,6 +17,7 @@ internal static class SfntReader
     private const uint GlyfTableTag = 0x676C7966; // 'glyf'
     private const uint MaxpTableTag = 0x6D617870; // 'maxp'
     private const uint CffTableTag = 0x43464620;  // 'CFF '
+    private const uint FvarTableTag = 0x66766172; // 'fvar'
 
     /// <summary>
     /// 表目录读出的位置信息；name 表内容已读出，其余表只记位置，按需再读。
@@ -35,7 +36,9 @@ internal static class SfntReader
         long GlyfOffset = -1,
         int GlyfLength = 0,
         long MaxpOffset = -1,
-        bool HasCff = false);
+        bool HasCff = false,
+        long FvarOffset = -1,
+        int FvarLength = 0);
 
     /// <summary>
     /// 读出容器里每个字体（TTC 成员）的 sfnt 起始偏移。普通字体返回单元素数组，
@@ -96,6 +99,7 @@ internal static class SfntReader
         long os2Offset = -1, os2Length = -1;
         long headOffset = -1, headLength = 0;
         long cmapOffset = -1, cmapLength = 0;
+        long fvarOffset = -1, fvarLength = 0;
         long locaOffset = -1, locaLength = 0;
         long glyfOffset = -1, glyfLength = 0;
         long maxpOffset = -1;
@@ -127,6 +131,8 @@ internal static class SfntReader
                     maxpOffset = offset; break;
                 case CffTableTag:
                     hasCff = true; break;
+                case FvarTableTag:
+                    fvarOffset = offset; fvarLength = (int)Math.Min(len, int.MaxValue); break;
             }
         }
 
@@ -149,7 +155,9 @@ internal static class SfntReader
             glyfOffset,
             (int)glyfLength,
             maxpOffset,
-            hasCff);
+            hasCff,
+            fvarOffset,
+            (int)fvarLength);
     }
 
     /// <summary>读取 maxp 表前 6 字节（含偏移 4 处的 numGlyphs）；表不存在或读不满时返回 null。</summary>
@@ -171,6 +179,19 @@ internal static class SfntReader
         stream.Position = tables.Os2Offset;
         var read = stream.Read(buf, 0, buf.Length);
         if (read < 6) return null;
+
+        return read == buf.Length ? buf : buf.AsSpan(0, read).ToArray();
+    }
+
+    /// <summary>读取整张 fvar 表（可变字体坐标轴）；表不存在或大得离谱时返回 null。</summary>
+    internal static byte[]? ReadFvarTable(Stream stream, SfntTables tables)
+    {
+        if (tables.FvarOffset < 0 || tables.FvarLength < 16 || tables.FvarLength > 4 * 1024 * 1024) return null;
+
+        var buf = new byte[tables.FvarLength];
+        stream.Position = tables.FvarOffset;
+        var read = stream.Read(buf, 0, buf.Length);
+        if (read < 16) return null;
 
         return read == buf.Length ? buf : buf.AsSpan(0, read).ToArray();
     }

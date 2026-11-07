@@ -84,6 +84,9 @@ public static partial class FontMetadataReader
         if (string.IsNullOrWhiteSpace(englishFamily) && string.IsNullOrWhiteSpace(chineseFamily))
             return null;
 
+        // 可变字体的轴要在同一根流上读，否则 ReadFile 一次打开的好处就白费了。
+        var variationAxes = VariationAxesParser.Describe(SfntReader.ReadFvarTable(stream, tables));
+
         var weight = 400;
         var italic = false;
         var embeddingFlags = -1;
@@ -134,6 +137,7 @@ public static partial class FontMetadataReader
             FaceIndex = faceIndex,
             EmbeddingFlags = embeddingFlags,
             ScriptLanguage = script,
+            VariationAxes = variationAxes,
         };
     }
 }

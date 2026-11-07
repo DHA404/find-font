@@ -10,9 +10,20 @@ internal static class TestRunner
 {
     private static int _passed;
     private static int _failed;
+    private static int _skipped;
+
+    private static int _unitPassed;
+    private static int _integrationPassed;
+    private static int _uiPassed;
 
     /// <summary>整个进程共享的 WPF Application，窗口构造时靠它解析主题资源。</summary>
     internal static FindFont.App.App? App { get; set; }
+
+    /// <summary>
+    /// 只跑某一层；null 表示全跑。CI 上纯逻辑那一层跑在所有平台上，
+    /// 依赖桌面会话的用例只在 Windows 上跑。
+    /// </summary>
+    internal static TestTier? Filter { get; set; }
 
     /// <summary>
     /// 仓库根目录。测试在 bin/Debug/net8.0-windows 下运行，
@@ -38,20 +49,44 @@ internal static class TestRunner
 
     internal static void Run(string name, Action body)
     {
+        var tier = TestTiers.Of(name);
+        if (Filter is { } only && tier != only)
+        {
+            _skipped++;
+            return;
+        }
+
         var sw = Stopwatch.StartNew();
         try
         {
             body();
             sw.Stop();
             _passed++;
-            Console.WriteLine($"  PASS  {name}  ({sw.ElapsedMilliseconds} ms)");
+            CountPass(tier);
+            Console.WriteLine($"  PASS  [{TestTiers.Describe(tier)}] {name}  ({sw.ElapsedMilliseconds} ms)");
         }
         catch (Exception ex)
         {
             sw.Stop();
             _failed++;
-            Console.WriteLine($"  FAIL  {name}  ({sw.ElapsedMilliseconds} ms)");
+            Console.WriteLine($"  FAIL  [{TestTiers.Describe(tier)}] {name}  ({sw.ElapsedMilliseconds} ms)");
             Console.WriteLine($"        {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private static void CountPass(TestTier tier)
+    {
+        switch (tier)
+        {
+            case TestTier.Unit:
+                _unitPassed++;
+                break;
+            case TestTier.Ui:
+                _uiPassed++;
+                break;
+            default:
+                _integrationPassed++;
+                break;
         }
     }
 
@@ -69,6 +104,13 @@ internal static class TestRunner
     internal static int Summary()
     {
         Console.WriteLine(new string('-', 60));
+        if (Filter is { } only)
+        {
+            Console.WriteLine($"本次只跑了 {TestTiers.Describe(only)} 层，跳过其他 {_skipped} 项。");
+        }
+
+        Console.WriteLine(
+            $"分层通过：unit {_unitPassed} · integration {_integrationPassed} · ui {_uiPassed}");
         Console.WriteLine($"通过 {_passed} 项，失败 {_failed} 项");
         return _failed == 0 ? 0 : 1;
     }

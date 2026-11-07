@@ -21,7 +21,7 @@ if /I "%~1"=="build" goto build
 if /I "%~1"=="test" goto test
 if /I "%~1"=="run" goto run
 if /I "%~1"=="publish" goto publish
-echo Usage: build.cmd [build^|test^|run^|publish]
+echo Usage: build.cmd [build^|test^|run^|publish]  (test takes optional tier: unit^|integration^|ui)
 exit /b 1
 
 :build
@@ -29,7 +29,7 @@ dotnet build FindFont.slnx -c Debug || exit /b 1
 exit /b 0
 
 :test
-dotnet run --project tests\FindFont.SmokeTests\FindFont.SmokeTests.csproj -c Debug || exit /b 1
+dotnet run --project tests\FindFont.SmokeTests\FindFont.SmokeTests.csproj -c Debug -- %2 || exit /b 1
 exit /b 0
 
 :run

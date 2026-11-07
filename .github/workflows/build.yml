@@ -10,9 +10,19 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # 老系统上字体表/注册表行为跟最新版有差别（ttc 数量、HKCU 字体目录、DPI 感知回退都在这里出过问题），
+    # 两个 Windows 版本一起跑，比只在 latest 上过一次更可信。
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+
+    env:
+      # 只在 matrix 的第一项上做发布，否则两个 job 会同时往同一个 release 里塞资产。
+      IS_RELEASE_JOB: ${{ matrix.os == 'windows-latest' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +31,16 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
+
+      # NuGet 还原在 runner 上是纯磁盘活，缓存住能省掉每次一两分钟的下载。
+      # key 带上 csproj/props，依赖变了才会失效。
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       # 版本号只写在 version.txt 里。tag 与它不一致时直接失败，
       # 否则会出现「用新 tag 发旧版本号」这种对不上的发布。
@@ -40,6 +60,10 @@ jobs:
 
       - name: Build
         run: dotnet build FindFont.slnx -c Release --no-restore
+
+      # 纯逻辑那层不需要桌面会话，跑得也快；先过它，失败时更容易看出是逻辑问题还是环境问题。
+      - name: Smoke tests (unit)
+        run: dotnet run --project tests/FindFont.SmokeTests/FindFont.SmokeTests.csproj -c Release --no-build -- unit
 
       - name: Smoke tests
         run: dotnet run --project tests/FindFont.SmokeTests/FindFont.SmokeTests.csproj -c Release --no-build
@@ -66,16 +90,20 @@ jobs:
           Write-Host "所有源文件都在 $limit 行以内"
 
       - name: Publish app
+        if: env.IS_RELEASE_JOB == 'true'
         run: dotnet publish src/FindFont.App/FindFont.App.csproj -c Release -o publish
 
       - name: Build launcher
+        if: env.IS_RELEASE_JOB == 'true'
         run: dotnet build src/FindFont.Launcher/FindFont.Launcher.csproj -c Release
 
       - name: Copy launcher into publish
+        if: env.IS_RELEASE_JOB == 'true'
         shell: pwsh
         run: Copy-Item "src/FindFont.Launcher/bin/Release/net48/FindFont.exe" "publish/FindFont.exe" -Force
 
       - name: Package portable zip
+        if: env.IS_RELEASE_JOB == 'true'
         shell: pwsh
         run: |
           # 调试符号对使用者无意义，且会让未压缩体积翻倍。
@@ -85,6 +113,7 @@ jobs:
           Compress-Archive -Path "publish/*" -DestinationPath "dist/find-font-$version-win-x64.zip" -Force
 
       - uses: actions/upload-artifact@v4
+        if: env.IS_RELEASE_JOB == 'true'
         with:
           name: find-font-win-x64
           path: dist/find-font-*-win-x64.zip
@@ -93,7 +122,7 @@ jobs:
       # 只在 tag 上跑，且 release 正文由人工维护（generate_release_notes 会用
       # 自动 changelog 覆盖掉手写的下载说明，还会额外要求一次 release-notes 权限）。
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && env.IS_RELEASE_JOB == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/find-font-*-win-x64.zip

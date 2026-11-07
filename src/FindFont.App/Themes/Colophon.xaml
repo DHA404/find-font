@@ -63,6 +63,12 @@
                                FontSize="{StaticResource TextBodySize}" TextWrapping="Wrap" />
                 </StackPanel>
 
+                <!-- 只有可变字体才有这一行；静态字体整段隐藏，不留空标签。 -->
+                <StackPanel Visibility="{Binding ColophonVariationAxes, Converter={StaticResource StringToVisibility}}">
+                    <TextBlock Text="可变轴" Style="{StaticResource ColophonLabel}" />
+                    <TextBlock Text="{Binding ColophonVariationAxes}" Style="{StaticResource ColophonValue}" />
+                </StackPanel>
+
                 <Border Style="{StaticResource Hairline}" Margin="0,0,0,16" />
 
                 <TextBlock Text="语言" Style="{StaticResource ColophonLabel}" />

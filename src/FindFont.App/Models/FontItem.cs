@@ -66,6 +66,9 @@ public partial class FontItem : ObservableObject
     [ObservableProperty] private int _faceCount = 1;
     [ObservableProperty] private string _embedding = string.Empty;
 
+    // 可变字体（fvar）的坐标轴，形如 "wght 100–900"；静态字体为空。
+    [ObservableProperty] private string _variationAxes = string.Empty;
+
     // 排序依据：扫描时一次性取到，不在每次筛选时重读文件系统。
     [ObservableProperty] private long _fileSize;
     [ObservableProperty] private DateTime _modifiedAt = DateTime.MinValue;
@@ -73,10 +76,15 @@ public partial class FontItem : ObservableObject
     /// <summary>同一个字体文件里的第几个字面；单字体文件恒为 0。</summary>
     public bool HasMultipleFaces => FaceCount > 1;
 
+    /// <summary>是否是可变字体（带 fvar 坐标轴）。</summary>
+    public bool IsVariable => VariationAxes.Length > 0;
+
     /// <summary>形如「第 2/3 面」；单字体文件返回空串，界面据此隐藏该标签。</summary>
     public string FaceLabel => FaceCount > 1 ? $"第 {FaceIndex + 1}/{FaceCount} 面" : string.Empty;
 
     partial void OnFaceIndexChanged(int value) => OnPropertyChanged(nameof(FaceLabel));
+
+    partial void OnVariationAxesChanged(string value) => OnPropertyChanged(nameof(IsVariable));
     partial void OnFaceCountChanged(int value)
     {
         OnPropertyChanged(nameof(FaceLabel));

@@ -108,4 +108,26 @@ internal static class InstallerTests
         var occurrences = ttf.Split("(TrueType").Length - 1;
         Check(occurrences == 1, $"值名只应包含一次类型后缀，实际 {occurrences} 次：{ttf}");
     }
+
+    /// <summary>
+    /// 用户级安装（不提权）的路径判定：装到 %LOCALAPPDATA% 的字体走 HKCU，
+    /// 判错会让「卸载」去请求一次无意义的 UAC。
+    /// </summary>
+    internal static void TestUserScopeInstall()
+    {
+        var userDir = FontInstaller.UserFontDirectory;
+        Check(userDir.Length > 0, "应能取到当前用户字体目录");
+        Check(userDir.Contains("Microsoft"), $"用户字体目录应在 Microsoft 之下，实际 {userDir}");
+
+        var sample = Path.Combine(userDir, "example.ttf");
+        Check(FontInstaller.IsUserScopePath(sample), "用户字体目录下的路径应判为当前用户范围");
+        Check(!FontInstaller.IsUserScopePath(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf")),
+            "系统字体目录的路径不应判为用户范围");
+        Check(!FontInstaller.IsUserScopePath(null), "null 路径不应判为用户范围");
+        Check(!FontInstaller.IsUserScopePath(string.Empty), "空路径不应判为用户范围");
+
+        // 用户字体目录不能是系统字体目录的前缀之外的东西（防止误判到 C:\ 根）。
+        Check(!FontInstaller.IsUserScopePath(Path.GetPathRoot(userDir)!), "盘根不应判为用户范围");
+    }
 }

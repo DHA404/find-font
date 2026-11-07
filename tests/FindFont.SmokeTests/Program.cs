@@ -12,6 +12,14 @@ internal static class Program
         Console.WriteLine("find-font 冒烟测试");
         Console.WriteLine(new string('-', 60));
 
+        // 可选层过滤：`dotnet run -- unit` 只跑纯逻辑那批。CI 上第一层跑全平台，
+        // 需要桌面会话的用例才落到 Windows。
+        TestRunner.Filter = TestTiers.Parse(args.FirstOrDefault());
+        if (TestRunner.Filter is { } only)
+        {
+            Console.WriteLine($"只跑 {TestTiers.Describe(only)} 层");
+        }
+
         // WPF 一个进程只能有一个 Application；先建好，窗口构造时才能解析主题资源。
         // 构造函数会把 OnStartup 投递成 dispatcher 操作；测试自己泵消息时它会迟到执行，
         // 抢走单实例互斥体并造出一个没人要的窗口。
@@ -45,9 +53,11 @@ internal static class Program
         TestRunner.Run("卸载不删系统字体文件", InstallerTests.TestUninstallProtectsSystemFonts);
         TestRunner.Run("网页字体（WOFF）明确拒装", InstallerTests.TestWebFontsRejected);
         TestRunner.Run("字体注册表值名格式正确", InstallerTests.TestRegistryValueName);
+        TestRunner.Run("用户级安装路径走 HKCU", InstallerTests.TestUserScopeInstall);
         TestRunner.Run("多字面容器展开为多条字体", FontMetadataTests.TestReadAllFaces);
         TestRunner.Run("字符覆盖优先于名字推断语言", FontMetadataTests.TestUnicodeRangeLanguage);
         TestRunner.Run("嵌入权限位翻译成文案", FontMetadataTests.TestDescribeEmbedding);
+        TestRunner.Run("可变字体坐标轴被解析", FontMetadataTests.TestVariationAxes);
         TestRunner.Run("单实例互斥体只放行一个进程", InfrastructureTests.TestSingleInstance);
         TestRunner.Run("设置默认值与屏幕可见性判断", InfrastructureTests.TestSettings);
         TestRunner.Run("设置经视图模型往返一致", InfrastructureTests.TestSettingsRoundTripThroughViewModel);

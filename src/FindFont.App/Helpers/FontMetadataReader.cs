@@ -175,17 +175,44 @@ public static partial class FontMetadataReader
     }
 
 
+    /// <summary>OS/2 fsType 的位定义（OpenType 规范）。</summary>
+    private const int FsTypeRestricted = 0x0002;      // bit 1：仅限已授权用途
+    private const int FsTypePreviewPrint = 0x0004;    // bit 2：只读嵌入
+    private const int FsTypeEditable = 0x0008;        // bit 3：可编辑嵌入
+    private const int FsTypeNoSubsetting = 0x0100;    // bit 8：禁止子集化
+    private const int FsTypeBitmapOnly = 0x0200;      // bit 9：只允许位图嵌入
+
     /// <summary>把 fsType 位域翻译成给用户看的一句话。</summary>
+    /// <remarks>
+    /// 位权限里只有 bit1 是「法律意义上的禁止」；bit2/bit3 说的是允许怎么用，
+    /// 不是允许不允许装。所以界面文案区分「禁止嵌入」与「可安装」，不把两者混成一句。
+    /// </remarks>
     public static string DescribeEmbedding(int flags)
     {
         if (flags < 0) return "未知（缺少 OS/2 表）";
-        if ((flags & 0x0002) != 0) return "禁止嵌入";
-        if ((flags & 0x0200) != 0) return "仅可编辑嵌入";
-        if ((flags & 0x0004) != 0) return "仅可预览与打印";
 
-        var installable = (flags & 0x0008) != 0;
-        return installable ? "可安装（允许嵌入）" : "无嵌入限制";
+        var license =
+            (flags & FsTypeRestricted) != 0 ? "禁止嵌入" :
+            (flags & FsTypeEditable) != 0 ? "可安装（允许嵌入）" :
+            (flags & FsTypePreviewPrint) != 0 ? "仅可预览与打印" :
+            (flags & FsTypeBitmapOnly) != 0 ? "仅位图嵌入" :
+            "无嵌入限制";
+
+        // bit8 与许可位不冲突，是可以并列的附加限制；但已经「禁止嵌入」时
+        // 再谈子集化没有意义，反而让读者以为还有别的用法可商量。
+        if ((flags & FsTypeNoSubsetting) != 0
+            && (flags & FsTypeRestricted) == 0
+            && (flags & FsTypeBitmapOnly) == 0)
+        {
+            license += "，不允许子集化";
+        }
+
+        return license;
     }
+
+    /// <summary>该字体的许可位是否声明「禁止嵌入」（bit1）。</summary>
+    public static bool IsEmbeddingRestricted(int flags) =>
+        flags >= 0 && (flags & FsTypeRestricted) != 0;
 
     internal static bool IsRecoverable(Exception ex) =>
         ex is FileFormatException or NotSupportedException or ArgumentException

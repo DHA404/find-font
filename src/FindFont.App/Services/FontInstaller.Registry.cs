@@ -25,11 +25,11 @@ public static partial class FontInstaller
         return $"{stem} {typeName}";
     }
 
-    private static bool RegisterInRegistry(string fileName, RegistryView view)
+    private static bool RegisterInRegistry(string fileName, RegistryHive hive, RegistryView view)
     {
         try
         {
-            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
             using var key = baseKey.CreateSubKey(FontsKeyPath, writable: true);
             if (key is null) return false;
 
@@ -52,12 +52,12 @@ public static partial class FontInstaller
         }
     }
 
-    private static bool RemoveFromRegistry(string displayName, string fileName, RegistryView view)
+    private static bool RemoveFromRegistry(string displayName, string fileName, RegistryHive hive, RegistryView view)
     {
         var removed = false;
         try
         {
-            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
             using var key = baseKey.OpenSubKey(FontsKeyPath, writable: true);
             if (key is null) return false;
 

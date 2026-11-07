@@ -129,13 +129,16 @@ public static partial class FontInstaller
         }
 
         var added = NativeMethods.AddFontResourceEx(target, NativeMethods.FR_DEFAULT, IntPtr.Zero);
-        RegisterInRegistry(fileName, RegistryView.Registry64);
-        RegisterInRegistry(fileName, RegistryView.Registry32);
+        RegisterInRegistry(fileName, RegistryHive.LocalMachine, RegistryView.Registry64);
+        RegisterInRegistry(fileName, RegistryHive.LocalMachine, RegistryView.Registry32);
         RecordInstalled(target);
 
-        return added > 0
-            ? $"OK 已安装 {fileName}"
-            : $"WARN {fileName}: 已复制但系统未能加载该字体（可能是坏字体）";
+        if (added <= 0) return $"WARN {fileName}: 已复制但系统未能加载该字体（可能是坏字体）";
+
+        // 许可位只提示不阻断：装不装是用户与授权方的事，程序不替他们做法律判断。
+        return FontMetadataReader.IsEmbeddingRestricted(ReadEmbeddingFlags(sourcePath))
+            ? $"OK 已安装 {fileName}（字体声明禁止嵌入，请确认授权范围）"
+            : $"OK 已安装 {fileName}";
     }
 
     // ---------------------------------------------------------------- 卸载
@@ -152,8 +155,10 @@ public static partial class FontInstaller
         var exists = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
         if (exists) NativeMethods.RemoveFontResourceEx(path, NativeMethods.FR_DEFAULT, IntPtr.Zero);
 
-        RemoveFromRegistry(displayName, fileName, RegistryView.Registry64);
-        RemoveFromRegistry(displayName, fileName, RegistryView.Registry32);
+        // 用户级安装只登记在 HKCU 里，系统级在 HKLM；两个都清一遍是最省事的幂等做法。
+        RemoveFromRegistry(displayName, fileName, RegistryHive.CurrentUser, RegistryView.Default);
+        RemoveFromRegistry(displayName, fileName, RegistryHive.LocalMachine, RegistryView.Registry64);
+        RemoveFromRegistry(displayName, fileName, RegistryHive.LocalMachine, RegistryView.Registry32);
 
         if (!exists) return $"OK 已卸载 {fileName}（文件已不存在，只清了登记）";
 
@@ -195,8 +200,8 @@ public static partial class FontInstaller
         var displayName = parts.Length == 2 ? parts[0] : string.Empty;
         var fileName = Path.GetFileName(parts.Length == 2 ? parts[1] : entry);
 
-        var removed = RemoveFromRegistry(displayName, fileName, RegistryView.Registry64)
-                      | RemoveFromRegistry(displayName, fileName, RegistryView.Registry32);
+        var removed = RemoveFromRegistry(displayName, fileName, RegistryHive.LocalMachine, RegistryView.Registry64)
+                      | RemoveFromRegistry(displayName, fileName, RegistryHive.LocalMachine, RegistryView.Registry32);
 
         return removed
             ? $"OK 已清理无效字体项 {displayName} ({fileName})"

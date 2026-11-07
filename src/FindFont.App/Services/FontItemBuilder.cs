@@ -113,6 +113,7 @@ internal static class FontItemBuilder
         item.StatusMessage = string.Empty;
         item.FaceIndex = info.FaceIndex;
         item.Embedding = FontMetadataReader.DescribeEmbedding(info.EmbeddingFlags);
+        item.VariationAxes = info.VariationAxes;
         item.Language = LanguageInference.InferWithCoverage(
             info.ScriptLanguage, info.ChineseFamilyName, info.FamilyName, item.FileName);
     }

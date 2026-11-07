@@ -177,10 +177,104 @@ internal static class FontMetadataTests
     {
         Check(FontMetadataReader.DescribeEmbedding(-1).Contains("未知"), "缺 OS/2 表时应说明未知");
         Check(FontMetadataReader.DescribeEmbedding(0x0002) == "禁止嵌入", "fsType bit1 应为禁止嵌入");
-        Check(FontMetadataReader.DescribeEmbedding(0x0200).Contains("仅可编辑"), "fsType bit9 应为仅可编辑");
+        Check(FontMetadataReader.DescribeEmbedding(0x0200) == "仅位图嵌入", "fsType bit9 应为仅位图嵌入");
         Check(FontMetadataReader.DescribeEmbedding(0x0004).Contains("预览与打印"), "fsType bit2 应为仅预览打印");
         Check(FontMetadataReader.DescribeEmbedding(0x0008).Contains("可安装"), "fsType bit3 应为可安装");
         Check(FontMetadataReader.DescribeEmbedding(0) == "无嵌入限制", "无限制位时应为无嵌入限制");
+
+        // bit8 与许可位不冲突，应当并列出现；bit1 优先级最高，其余位不再解释。
+        Check(FontMetadataReader.DescribeEmbedding(0x0100).Contains("子集化"), "fsType bit8 应附加不允许子集化");
+        Check(FontMetadataReader.DescribeEmbedding(0x0108).Contains("可安装")
+              && FontMetadataReader.DescribeEmbedding(0x0108).Contains("子集化"),
+            "可安装 + 禁止子集化，两条都要说");
+        Check(FontMetadataReader.DescribeEmbedding(0x0002 | 0x0100) == "禁止嵌入",
+            "禁止嵌入优先级最高，不再叠加子集化说明");
+
+        Check(FontMetadataReader.IsEmbeddingRestricted(0x0002), "bit1 应判为受限");
+        Check(!FontMetadataReader.IsEmbeddingRestricted(0x0008), "可安装不应判为受限");
+        Check(!FontMetadataReader.IsEmbeddingRestricted(-1), "未知许可不应判为受限");
+    }
+
+    /// <summary>可变字体轴解析：拿本机真字体做端到端，找不到就只验证构造表。</summary>
+    internal static void TestVariationAxes()
+    {
+        var variable = FindVariableFont();
+        if (variable is null)
+        {
+            Check(true, "跳过：本机没有可变字体");
+        }
+        else
+        {
+            var faces = FontMetadataReader.ReadFile(variable);
+            Check(faces.Count > 0, "可变字体应能解析出字面");
+            if (faces.Count > 0)
+            {
+                var axes = faces[0].VariationAxes;
+                Check(axes.Length > 0, "可变字体应解析出坐标轴");
+                Check(axes.Contains(' ') || axes.Contains('·'), "轴描述应形如「wght 100–900」");
+            }
+        }
+
+        // 静态字体不应谎称可变。
+        var regular = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf");
+        if (File.Exists(regular))
+        {
+            var info = FontMetadataReader.TryRead(regular);
+            Check(info is not null && info.VariationAxes.Length == 0, "静态字体不应有坐标轴");
+        }
+
+        Check(VariationAxesParser.Describe(null) == string.Empty, "没有 fvar 表时应返回空串");
+        Check(VariationAxesParser.Describe(new byte[8]) == string.Empty, "表太短时应返回空串");
+    }
+
+    private static string? FindVariableFont()
+    {
+        var roots = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Fonts),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft", "Windows", "Fonts"),
+        };
+
+        foreach (var root in roots)
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+
+            foreach (var pattern in new[] { "*.ttf", "*.otf" })
+            {
+                string[] files;
+                try
+                {
+                    files = Directory.GetFiles(root, pattern, SearchOption.TopDirectoryOnly);
+                }
+                catch (Exception ex) when (FontMetadataReader.IsRecoverable(ex))
+                {
+                    continue;
+                }
+
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        using var stream = new FileStream(file, FileMode.Open, FileAccess.Read,
+                            FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
+                        var offsets = SfntReader.ReadFaceOffsets(stream);
+                        if (offsets is null or { Length: 0 }) continue;
+
+                        var tables = SfntReader.ReadTables(stream, offsets[0]);
+                        if (tables is null || SfntReader.ReadFvarTable(stream, tables) is null) continue;
+
+                        return file;
+                    }
+                    catch (Exception ex) when (FontMetadataReader.IsRecoverable(ex))
+                    {
+                        continue;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private static void AssertFamily(List<FontItem> files, string fileName, string family, string? chinese)

@@ -90,6 +90,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _colophonStatus = string.Empty;
     [ObservableProperty] private string _colophonFace = string.Empty;
     [ObservableProperty] private string _colophonEmbedding = string.Empty;
+    [ObservableProperty] private string _colophonVariationAxes = string.Empty;
     [ObservableProperty] private string _colophonCoverage = string.Empty;
     [ObservableProperty] private string _colophonCoverageChars = string.Empty;
 

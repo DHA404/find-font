@@ -26,8 +26,11 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 命令条：标题 + 计数在左，样本文字/搜索/字号在右 -->
-        <Grid Grid.Row="0" Margin="22,20,22,18">
+        <!--
+            命令条：标题在左，搜索与样本文字在右。
+            搜索给 3*、样本文字给 2* —— 搜索是高频操作，样本文字是一次设定后很少改的。
+        -->
+        <Grid Grid.Row="0" Margin="24,20,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="3*" />
@@ -39,31 +42,36 @@
                 <TextBlock Text="find-font"
                            FontFamily="{StaticResource DisplayFace}"
                            FontSize="{StaticResource TitleSize}" Foreground="{StaticResource Ink}" />
-                <TextBlock FontSize="{StaticResource TextMetaSize}" Foreground="{StaticResource InkMuted}"
-                           Margin="0,2,0,0">
-                    <Run Text="{Binding TotalCount, Mode=OneWay}" />
-                    <Run Text=" 个字体 · " />
-                    <Run Text="{Binding BrokenCount, Mode=OneWay}" />
-                    <Run Text=" 个失效登记 · " />
-                    <Run Text="{Binding AppVersionDisplay, Mode=OneWay}" />
-                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <TextBlock FontSize="{StaticResource TextMetaSize}"
+                               Foreground="{StaticResource InkMuted}"
+                               Typography.NumeralAlignment="Tabular">
+                        <Run Text="{Binding TotalCount, Mode=OneWay}" />
+                        <Run Text=" 个字体，" />
+                        <Run Text="{Binding BrokenCount, Mode=OneWay}" />
+                        <Run Text=" 处失效  " />
+                    </TextBlock>
+                    <TextBlock Text="{Binding AppVersionDisplay, Mode=OneWay}" Margin="12,0,0,0"
+                               FontSize="{StaticResource TextMetaSize}"
+                               Foreground="{StaticResource InkFaint}" />
+                </StackPanel>
             </StackPanel>
 
             <StackPanel Grid.Column="1">
-                <TextBlock Text="样本文字（应用到全部样本）" Style="{StaticResource SectionLabel}" />
-                <TextBox x:Name="PreviewBox" Style="{StaticResource FieldTextBox}"
-                         Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}"
-                         ToolTip="所有字体的样本会随输入实时重渲染" />
-            </StackPanel>
-
-            <StackPanel Grid.Column="2" Margin="18,0,0,0">
                 <TextBlock Text="搜索" Style="{StaticResource SectionLabel}" />
                 <TextBox x:Name="SearchBox" Style="{StaticResource FieldTextBox}"
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          ToolTip="字体名、文件名或样式名，停止输入 300 ms 后筛选（Ctrl+F 聚焦）" />
             </StackPanel>
 
-            <StackPanel Grid.Column="3" Margin="18,0,0,0" VerticalAlignment="Bottom">
+            <StackPanel Grid.Column="2" Margin="16,0,0,0">
+                <TextBlock Text="样本文字" Style="{StaticResource SectionLabel}" />
+                <TextBox x:Name="PreviewBox" Style="{StaticResource FieldTextBox}"
+                         Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                         ToolTip="所有字体的样本会随输入实时重渲染" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Bottom">
                 <TextBlock Text="字号" Style="{StaticResource SectionLabel}" />
                 <ComboBox Width="96" Style="{StaticResource FieldComboBox}"
                           ItemsSource="{Binding FontSizeOptions}"
@@ -71,10 +79,10 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="22,0" />
+        <Border Grid.Row="1" Style="{StaticResource Hairline}" Margin="24,0" />
 
         <!-- 文件头发丝进度条：加载时出现，不占用布局高度 -->
-        <ProgressBar Grid.Row="1" Height="3" VerticalAlignment="Top" Margin="22,0"
+        <ProgressBar Grid.Row="1" Height="3" VerticalAlignment="Top" Margin="24,0"
                      Minimum="0" Maximum="1" Value="{Binding LoadProgress}"
                      Foreground="{StaticResource Proof}" Background="Transparent"
                      BorderThickness="0"
@@ -87,100 +95,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- 左：索引栏。分类计数 + 风格开关 + 主动作 -->
+            <!-- 左：索引栏。结构在 Themes/Rail.xaml，这里只给一个宿主 -->
             <Border Grid.Column="0" BorderBrush="{StaticResource Rule}" BorderThickness="0,0,1,0">
-                <Grid Margin="0,18,0,16">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!-- 分类固定四项，高度自适应；行高由 IndexRow 决定，不会随字体数量变化。 -->
-                    <StackPanel Grid.Row="0">
-                        <TextBlock Text="分类" Style="{StaticResource SectionLabel}" Margin="18,0,0,10" />
-                        <ListBox ItemsSource="{Binding CategoryFacets}"
-                                 SelectedIndex="{Binding SelectedCategoryIndex}"
-                                 ItemContainerStyle="{StaticResource IndexRow}"
-                                 BorderThickness="0" Background="Transparent"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:FacetItem}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="{StaticResource TextBodySize}"
-                                                   Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1" Text="{Binding CountText}" FontSize="{StaticResource TextMetaSize}"
-                                                   Foreground="{StaticResource InkFaint}" VerticalAlignment="Center" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </StackPanel>
-
-                    <!-- 风格与范围固定在动作区上方：这些开关是常用动作，不能被滚动裁成半行。 -->
-                    <StackPanel Grid.Row="1">
-                        <Border Style="{StaticResource Hairline}" Margin="18,10,18,12" />
-                        <TextBlock Text="风格 · 范围" Style="{StaticResource SectionLabel}" Margin="18,0,0,8" />
-                        <UniformGrid Margin="14,0,14,0" Columns="2">
-                            <CheckBox Content="全部" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
-                                      IsChecked="{Binding IsStyleAll}" />
-                            <CheckBox Content="常规" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
-                                      IsChecked="{Binding IsStyleRegular}" />
-                            <CheckBox Content="粗体" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
-                                      IsChecked="{Binding IsStyleBold}" />
-                            <CheckBox Content="斜体" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
-                                      IsChecked="{Binding IsStyleItalic}" />
-                            <CheckBox Content="失效登记" Style="{StaticResource ChipToggle}" Margin="0,0,4,5"
-                                      IsChecked="{Binding ShowBrokenOnly}" />
-                            <CheckBox Content="缺映射" Style="{StaticResource ChipToggle}" Margin="4,0,0,5"
-                                      IsChecked="{Binding ShowMissingMapOnly}" />
-                            <CheckBox Content="空字形" Style="{StaticResource ChipToggle}"
-                                      IsChecked="{Binding ShowEmptyGlyphOnly}" />
-                        </UniformGrid>
-                    </StackPanel>
-
-                    <!-- 动作区在 700px 高的窗口里放不全，交给滚动条；排序钉在它顶端。 -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="10,12,10,0">
-                            <TextBlock Text="排序" Style="{StaticResource SectionLabel}" Margin="8,0,0,8" />
-                            <ComboBox Style="{StaticResource FieldComboBox}" Margin="8,0,8,12"
-                                      ItemsSource="{Binding SortOptions}"
-                                      SelectedIndex="{Binding SelectedSortIndex}" />
-                            <Border Style="{StaticResource Hairline}" Margin="8,0,8,10" />
-                            <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
-                                    Click="OnCompareClick"
-                                    IsEnabled="{Binding CanCompareOrSingle}"
-                                    HorizontalAlignment="Stretch" Margin="8,0,8,6" />
-                            <Button Content="从文件安装" Style="{StaticResource QuietButton}" Margin="8,0"
-                                    HorizontalAlignment="Stretch" Command="{Binding InstallFromFilesCommand}" />
-                            <Button Content="卸载字体" Style="{StaticResource QuietButton}" Margin="8,0"
-                                    HorizontalAlignment="Stretch" IsEnabled="{Binding CanUninstall}"
-                                    Command="{Binding UninstallSelectedCommand}" />
-                            <Button Content="清理失效登记" Style="{StaticResource QuietButton}" Margin="8,0"
-                                    HorizontalAlignment="Stretch" Command="{Binding CleanBrokenCommand}" />
-                            <Button Content="重新扫描" Style="{StaticResource QuietButton}" Margin="8,0"
-                                    HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}" />
-                            <Button Content="关于 / 环境信息" Style="{StaticResource QuietButton}" Margin="8,0,8,10"
-                                    HorizontalAlignment="Stretch" Command="{Binding ShowAboutCommand}" />
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- 状态栏固定在最底部：扫描/补名进度随时可见，不会被动作区滚动带走。 -->
-                    <StackPanel Grid.Row="3" Margin="10,6,10,0">
-                        <Border Style="{StaticResource Hairline}" Margin="8,0,8,8" />
-                        <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}"
-                                   TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"
-                                   Foreground="{StaticResource InkMuted}" Margin="8,0,8,0" />
-                        <Button Content="打开日志" Style="{StaticResource QuietButton}" Margin="0,4,0,0"
-                                Padding="8,4" HorizontalAlignment="Left" Command="{Binding OpenLogFolderCommand}" />
-                    </StackPanel>
-                </Grid>
+                <ContentControl Content="{Binding}"
+                                ContentTemplate="{StaticResource IndexRailTemplate}" />
             </Border>
 
             <!-- 中：样本列表 -->
@@ -223,76 +141,13 @@
                 </StackPanel>
             </Grid>
 
-            <!-- 右：档案（colophon）。没有选中时整栏折叠 -->
+            <!-- 右：档案（colophon）。没有选中时整栏折叠，结构在 Themes/Colophon.xaml -->
             <Border Grid.Column="2" Width="{StaticResource ColophonWidth}"
                     Background="{StaticResource SheetRaised}"
                     BorderBrush="{StaticResource Rule}" BorderThickness="1,0,0,0"
                     Visibility="{Binding IsDetailVisible, Converter={StaticResource BoolToVisibility}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20,24,20">
-                    <StackPanel>
-                        <TextBlock Text="档案" FontFamily="{StaticResource DisplayFace}" FontSize="19"
-                                   Foreground="{StaticResource Ink}" Margin="0,0,0,16" />
-
-                        <TextBlock Text="家族" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonFamily}" Style="{StaticResource ColophonValue}" />
-
-                        <TextBlock Text="本地化名" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonLocalized}" Style="{StaticResource ColophonValue}" />
-
-                        <Grid Margin="0,0,0,14">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="样式" Style="{StaticResource ColophonLabel}" />
-                                <TextBlock Text="{Binding ColophonStyle}" Style="{StaticResource ColophonValue}"
-                                           Margin="0" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                                <TextBlock Text="字重" Style="{StaticResource ColophonLabel}" />
-                                <TextBlock Text="{Binding ColophonWeight}" Style="{StaticResource ColophonValue}"
-                                           Margin="0" />
-                            </StackPanel>
-                        </Grid>
-
-                        <TextBlock Text="文件" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonFileName}" Style="{StaticResource ColophonValue}" />
-
-                        <TextBlock Text="路径" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonPath}" Style="{StaticResource ColophonValue}"
-                                   FontSize="12" Foreground="{StaticResource InkMuted}" />
-
-                        <TextBlock Text="语言" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonLanguage}" Style="{StaticResource ColophonValue}" />
-
-                        <TextBlock Text="字面 / 嵌入" Style="{StaticResource ColophonLabel}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <TextBlock Text="{Binding ColophonFace, TargetNullValue=—}"
-                                       Style="{StaticResource ColophonValue}" Margin="0" />
-                            <TextBlock Text="  ·  " Foreground="{StaticResource InkFaint}"
-                                       FontSize="{StaticResource TextBodySize}"
-                                       Visibility="{Binding ColophonFace, Converter={StaticResource StringToVisibility}}" />
-                            <TextBlock Text="{Binding ColophonEmbedding}" Foreground="{StaticResource Ink}"
-                                       FontSize="{StaticResource TextBodySize}" TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <TextBlock Text="字形覆盖" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonCoverage}" Style="{StaticResource ColophonValue}" />
-                        <TextBlock Text="{Binding ColophonCoverageChars}" Margin="0,0,0,16"
-                                   FontSize="{StaticResource TextBodySize}" Foreground="{StaticResource Proof}"
-                                   TextWrapping="Wrap"
-                                   Visibility="{Binding ColophonCoverageChars, Converter={StaticResource StringToVisibility}}" />
-
-                        <TextBlock Text="状态" Style="{StaticResource ColophonLabel}" />
-                        <TextBlock Text="{Binding ColophonStatus}" Style="{StaticResource ColophonValue}" />
-
-                        <Border Style="{StaticResource Hairline}" Margin="0,6,0,12" />
-                        <Button Content="打开所在文件夹" Style="{StaticResource QuietButton}"
-                                Command="{Binding OpenFontFolderCommand}"
-                                HorizontalAlignment="Left" Margin="-8,0,0,0" />
-                    </StackPanel>
-                </ScrollViewer>
+                <ContentControl Content="{Binding}"
+                                ContentTemplate="{StaticResource ColophonTemplate}" />
             </Border>
         </Grid>
     </Grid>

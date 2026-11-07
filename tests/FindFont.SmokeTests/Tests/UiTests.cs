@@ -96,7 +96,7 @@ internal static class UiTests
     {
         var app = TestRunner.App ?? throw new InvalidOperationException("Application 未初始化");
 
-        foreach (var key in new[] { "FontRowTemplate", "FontTileTemplate", "SlimScrollBar", "ScrollThumb", "Motion" })
+        foreach (var key in new[] { "FontRowTemplate", "FontTileTemplate", "IndexRailTemplate", "ColophonTemplate", "IconUpload", "RailButton", "SlimScrollBar", "ScrollThumb", "Motion" })
         {
             if (key == "Motion") continue; // Motion 是静态类型，不在资源字典里
             Check(app.Resources.Contains(key), $"资源字典里缺少 {key}");

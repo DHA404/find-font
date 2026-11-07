@@ -74,6 +74,14 @@ public partial class MainViewModel
         SelectionChanged();
     }
 
+    /// <summary>对比选中：真正开窗由视图完成（视图模型不碰 UI 类型）。</summary>
+    [RelayCommand]
+    private void CompareSelected()
+    {
+        if (SelectedFonts.Count == 0 && FocusedFont is null) return;
+        CompareRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     [RelayCommand]
     private void ClearSearch()
     {

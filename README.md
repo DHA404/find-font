@@ -105,9 +105,13 @@ find-font 对这三件事的处理分别是：全部字体离屏渲染成位图�
 
 字体列表是**多列瓦片网格**而不是单列长条：瓦片宽由列表实际可用宽度算出并向下量化到 32px 桶，列数 1–3 随宽度收敛（右栏展开时列表变窄，会主动退回两列而不是把第三列挤出血）。窗口缩放到 1080 宽时仍是两列，700 宽以下退成一列。列宽量化是因为每变一次尺寸就要重新渲染可见区，量化后拖动窗口只会落进有限几档。
 
-视觉上只有一套灰阶 + 一个强调色：纸灰底 `#ECEDEF`、面板 `#F6F7F8`、墨色 `#101215`、发丝线 `#CDD1D6`，以及唯一用来表达「被选中 / 有焦点 / 已失效」的品红 `#C4005E`。界面字体是 Cambria（标题、样本元数据）与 Segoe UI（控件），全部无圆角，靠 1px 线分层而不是靠卡片阴影。
+视觉上只有一套灰阶 + 一个强调色：纸灰底 `#ECEDEF`、面板 `#F6F7F8`、墨色 `#101215`、发丝线 `#CDD1D6`，以及品红 `#C4005E`。品红是校样标记，全界面只允许出现在两处：**我正在看的这一个**（选中瓦片左侧那条 48px 高的 2px 裁切线）与**这几个字有问题**（缺字的示例字符）。其余状态一律降级成安静的文字：面数用 `#646A72`、失效用暖褐 `#7A4A16`，都不铺底色药丸——到处都是强调色时，没有任何东西是强调。
 
-瓦片样本区固定 96px 高、字形垂直居中，选中不做高度动画（多列网格里行长高会连带整行重排），只把底色抬到 `#FFFFFF` 并在左侧点亮一条 2px 品红竖条——选中状态在一个 340px 宽的瓦片里足够醒目，不值得为它牺牲滚动稳定性。筛选结果逐行错开入场（每行延迟 12 ms、封顶 180 ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
+界面字体是 `Constantia, Georgia, Cambria, serif`（标题、面板标题）与 Segoe UI（控件、正文）。Constantia 比 Cambria 更收敛，衬线只在标题上出现一次；正文全部无衬线，14–15px。全部无圆角，靠 1px 发丝线分层而不是卡片阴影。所有间距落在 4px 网格上（24 版心 / 16 栏内 / 8 段间 / 4 行距），索引栏七个动作的图标槽统一 16px，标签因此右对齐成一列。
+
+瓦片样本区固定 96px 高、字形垂直居中，选中不做高度动画（多列网格里行长高会连带整行重排），只把底色抬到 `#FFFFFF` 并在左侧点亮一条 2px 品红裁切线——选中状态在一个 340px 宽的瓦片里足够醒目，不值得为它牺牲滚动稳定性。筛选结果逐行错开入场（每行延迟 12 ms、封顶 180 ms），输入框聚焦时底边从中心长出一条 2px 品红标尺。
+
+左栏是四段式索引（分类 / 字重 / 只显示 / 排序）加动作区，状态栏钉在底部：滚动区和动作区互不挤压，动作区放不下时自己滚而不是把按钮裁掉。右栏「档案」按语义分三段（标识 / 文件 / 覆盖与状态），段之间用发丝线过渡，不再靠每个字段各留一截空白硬隔。索引栏与档案面板的 XAML 抽在 `Themes/Rail.xaml`、`Themes/Colophon.xaml`，`MainWindow.xaml` 只留三栏骨架。
 
 窗口材质走 `DWMWA_SYSTEMBACKDROP_TYPE`（Win11 22H2+），旧的 `DWMWA_MICA_EFFECT` 与 Win10 的 `SetWindowCompositionAttribute` 逐级回退，全部失败时留在不透明纸色上；材质生效时内容层铺 `#F0ECEDEF` 半透明纸色，保证正文对比度不随壁纸变化。所有动画都读 `SystemParameters.ClientAreaAnimation`——系统关掉动画即全部退化为瞬时切换。
 
@@ -229,7 +233,10 @@ src/FindFont.App/
   Converters/                     FontToImage（MultiBinding → BitmapSource）、可见性转换器
   Themes/Tokens.xaml              色板、字体、尺寸常量（唯一配色来源）
   Themes/Controls.xaml            聚合器：Inputs / Buttons / Rows 三份
-  Themes/Templates.xaml           样本行模板（行高动画 + 双图交叉淡化）
+  Themes/Templates.xaml           瓦片模板（FontTileTemplate）与行模板（FontRowTemplate）
+  Themes/Rail.xaml                左栏索引：分类 / 字重 / 只显示 / 排序 / 动作 / 状态
+  Themes/Colophon.xaml            右栏档案：标识 / 文件 / 覆盖与状态三段
+  Themes/Icons.xaml               8 个 16px 线图标几何与图标槽样式
   Themes/Scrollbars.xaml          4px 细滚动条
   ViewModels/MainViewModel.cs     状态字段、集合、计算属性
   ViewModels/MainViewModel.Filtering.cs   扫描加载、防抖搜索、筛选、分类计数
@@ -241,6 +248,7 @@ src/FindFont.App/
   ViewModels/CompareViewModel.cs  最多三款字体同屏对照
   Models/FontRow.cs               一行瓦片的数据载体
   Models/FontItem.Tile.cs         瓦片选中标记与请求入口
+  Models/GlyphCoverage.cs         缺字结果（种类、数量、示例字符）
   Views/MainWindow.xaml(.cs)      主窗口
   Views/MainWindow.Tiles.cs       瓦片点击、列宽刷新、全选
   Views/CompareWindow.xaml(.cs)   对比窗口
@@ -308,12 +316,15 @@ build.cmd test
 50. 多列分行与筛选顺序一致：37 条按 2/3/1 列切出的行数与末行瓦片数正确，展平后顺序与源集合逐项相同
 51. 列数随窗口宽度收敛：1360/1120 → 3 列，1080/852 → 2 列，700/470 → 1 列；瓦片宽度始终 ≥220 且是 32 的整数倍；宽度微调不改变结果
 52. 瓦片选中驱动既有筛选语义：独占、Ctrl 切换、Shift 连选、清空都落到同一个选中集合上
+53. 间距落在 4px 网格：尺寸 token 全部是 4 的整数倍且为正，版心台阶单调（标题 > 面板标题 > 正文 > 元信息）
+54. 文字对比度达到 AA：`Ink` / `InkMuted` / `InkFaint` / `Proof` / `Warn` 在纸色、面板、抬升面板三种底上都 ≥4.5:1
+55. 品红不做药丸底色：样本行模板里 `ProofWash` 出现 0 次，品红只作为文字与裁切线颜色
 
-当前全部通过（52 项）。
+当前全部通过（55 项）。
 
 ## 启动与首屏
 
-打开软件到看见第一屏字体缩略图，这条链路被拆成可以分别量测的五段。全部打点由 `Helpers/StartupTrace.cs` 记录，「关于 / 环境信息」窗口底部会列出这一次启动的每一段耗时，日志里也写一份。
+打开软件到看见第一屏字体缩略图，这条链路被拆成可以分别量测的五段。全部打点由 `Helpers/StartupTrace.cs` 记录，「关于」窗口底部会列出这一次启动的每一段耗时，日志里也写一份。
 
 | 阶段 | 做什么 | 关键取舍 |
 | --- | --- | --- |

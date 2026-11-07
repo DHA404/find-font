@@ -3,19 +3,33 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!--
-        样本册配色：冷调校样纸灰 + 单一品红校色标记。
-        刻意不用暖米白 + 暖陶色，也不用近黑底 + 荧光色。
-        三层灰度承载层级，品红只用于「选中 / 焦点 / 失效」三种状态。
+        校样间配色：冷调纸张灰 + 单一校色品红。
+
+        品红是「校色标记」，不是装饰色。它只允许出现在四处：
+          1. 我正在看的是哪一个（索引行竖条、瓦片竖条）
+          2. 焦点落在哪个输入上（输入框底线）
+          3. 哪几个字真的有问题（缺字字符、搜索命中）
+          4. 后台还在忙（顶部进度条）
+        任何「状态徽章」都不能用品红铺底 —— 铺满粉色等于什么都不突出。
+        失效登记用独立的 Warn 中性告警色，与品红区分语义。
     -->
     <SolidColorBrush x:Key="Paper" Color="#ECEDEF" />
     <SolidColorBrush x:Key="Sheet" Color="#F6F7F8" />
     <SolidColorBrush x:Key="SheetRaised" Color="#FFFFFF" />
+
+    <!-- 三级文字角色。在 Paper 上的对比度：Ink 15.8:1 / InkMuted 7.4:1 / InkFaint 5.2:1。 -->
     <SolidColorBrush x:Key="Ink" Color="#101215" />
-    <SolidColorBrush x:Key="InkMuted" Color="#62676E" />
-    <SolidColorBrush x:Key="InkFaint" Color="#8F959D" />
+    <SolidColorBrush x:Key="InkMuted" Color="#4E545C" />
+    <SolidColorBrush x:Key="InkFaint" Color="#646A72" />
+
     <SolidColorBrush x:Key="Rule" Color="#CDD1D6" />
     <SolidColorBrush x:Key="Proof" Color="#C4005E" />
+    <!-- 校色淡底只给字符级标记（缺字示例）做衬，不再用作徽章底。 -->
     <SolidColorBrush x:Key="ProofWash" Color="#FCEDF4" />
+    <!-- 失效登记：偏暖的琥珀，语义与校色品红分开。 -->
+    <SolidColorBrush x:Key="Warn" Color="#7A4A16" />
+    <SolidColorBrush x:Key="WarnWash" Color="#F7F0E7" />
+
     <!-- 材质透出时铺在内容下的半透明纸色：正文永远有足够对比度，不直接压在 Mica 上。 -->
     <SolidColorBrush x:Key="PaperVeil" Color="#F0ECEDEF" />
     <SolidColorBrush x:Key="InkHairlineSoft" Color="#383C42" />
@@ -27,46 +41,52 @@
     <SolidColorBrush x:Key="CardBorderBrush" Color="#CDD1D6" />
     <SolidColorBrush x:Key="AccentBrush" Color="#C4005E" />
     <SolidColorBrush x:Key="TextPrimary" Color="#101215" />
-    <SolidColorBrush x:Key="TextSecondary" Color="#62676E" />
-    <SolidColorBrush x:Key="DangerBrush" Color="#C4005E" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#4E545C" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#7A4A16" />
 
     <!-- 原始 Color：需要做 ColorAnimation 的地方只能动画 Color，不能动画 Brush。 -->
     <Color x:Key="PaperColor">#ECEDEF</Color>
     <Color x:Key="SheetColor">#F6F7F8</Color>
     <Color x:Key="SheetRaisedColor">#FFFFFF</Color>
     <Color x:Key="InkColor">#101215</Color>
-    <Color x:Key="InkMutedColor">#62676E</Color>
+    <Color x:Key="InkMutedColor">#4E545C</Color>
     <Color x:Key="RuleColor">#CDD1D6</Color>
     <Color x:Key="ProofColor">#C4005E</Color>
 
-    <!-- chrome 字体：与「被预览的任意字体」拉开层级。预览内容永远走位图。 -->
-    <FontFamily x:Key="DisplayFace">Cambria</FontFamily>
+    <!--
+        chrome 字体：与「被预览的任意字体」拉开层级。
+        Constantia 是 Windows 自带的书卷气衬线，比 Cambria 窄、比 Times 新；
+        带完整回落链，缺字时退到 Georgia / 系统衬线，不会崩。
+    -->
+    <FontFamily x:Key="DisplayFace">Constantia, Georgia, Cambria, serif</FontFamily>
     <FontFamily x:Key="UiFace">Segoe UI</FontFamily>
 
     <!--
-        版面尺度集中在这里。
+        版面尺度。全部落在 4px 网格上。
 
-        上一轮把整册放大到 1600x1000 宽画布配单列大行，结果是窗口太大、
-        每行两侧留白太多、一屏只看得见六个字体 —— 松。这一轮反过来：
-        窗口收到 1360x880，两侧栏收窄，正文反而从 14 提到 15，
-        样本列表从「一行一个」改成「一行 N 个瓦片」，用密度换信息量。
+        左栏 208 / 右栏 300 保持，两侧都从 RailPad=16 起算，于是
+        段标签、索引行、开关、按钮、状态栏共用同一条左边缘。
+        瓦片行高 192 = 样本 96 + 元数据 40 + 标记行 24 + 上下留白 32，
+        上一版 176 装不下三行内容，缺字行被裁掉。
     -->
     <sys:Double x:Key="TileSampleHeight">96</sys:Double>
-    <sys:Double x:Key="TileMetaHeight">36</sys:Double>
-    <sys:Double x:Key="TileRowHeight">176</sys:Double>
+    <sys:Double x:Key="TileRowHeight">192</sys:Double>
     <sys:Double x:Key="TileMinWidth">340</sys:Double>
     <sys:Double x:Key="TileGap">20</sys:Double>
-    <sys:Double x:Key="TilePadding">16</sys:Double>
-    <sys:Double x:Key="PageGutter">22</sys:Double>
+    <sys:Double x:Key="TilePadding">12</sys:Double>
     <sys:Double x:Key="IndexRailWidth">208</sys:Double>
     <sys:Double x:Key="ColophonWidth">300</sys:Double>
+    <sys:Double x:Key="PageGutter">24</sys:Double>
+    <sys:Double x:Key="RailPad">16</sys:Double>
     <sys:Double x:Key="TextBodySize">15</sys:Double>
     <sys:Double x:Key="TextMetaSize">13</sys:Double>
     <sys:Double x:Key="TitleSize">24</sys:Double>
+    <sys:Double x:Key="PanelTitleSize">20</sys:Double>
     <sys:Double x:Key="SectionLabelSize">12</sys:Double>
 
     <!-- Padding/Margin 只接受 Thickness，不能直接绑 sys:Double，这里单独给一份。 -->
-    <Thickness x:Key="TilePaddingThickness">16</Thickness>
+    <Thickness x:Key="TilePaddingThickness">12</Thickness>
+    <Thickness x:Key="RailPadThickness">16</Thickness>
     <Thickness x:Key="GutterThickness">16</Thickness>
 
     <!-- 全局焦点环：2px 品红实线，替换系统默认虚线框。 -->
@@ -84,9 +104,9 @@
         <Setter Property="Background" Value="{StaticResource Ink}" />
         <Setter Property="Foreground" Value="#FFFFFF" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="Padding" Value="8,4" />
         <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">

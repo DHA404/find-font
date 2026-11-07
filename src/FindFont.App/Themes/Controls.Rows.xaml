@@ -18,7 +18,7 @@
         <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
         <Setter Property="FontSize" Value="{StaticResource SectionLabelSize}" />
         <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
-        <Setter Property="Margin" Value="0,0,0,7" />
+        <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
 
     <!-- 左栏索引行：hover 淡出一层浅底，选中时 2px 品红竖条长出来。 -->
@@ -39,7 +39,8 @@
                         <Grid Grid.Column="1">
                             <Border x:Name="Hover" Background="{StaticResource Sheet}" Opacity="0" />
                             <Border x:Name="Picked" Background="{StaticResource SheetRaised}" Opacity="0" />
-                            <Border Padding="18,10">
+                            <!-- 行高 40（内容 24 + 上下 8）+ RailPad 16，文字落在 x=16 这条线上。 -->
+                            <Border Padding="16,8">
                                 <ContentPresenter />
                             </Border>
                         </Grid>
@@ -117,7 +118,7 @@
     <Style x:Key="ColophonLabel" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
         <Setter Property="FontSize" Value="{StaticResource SectionLabelSize}" />
-        <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+        <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
         <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
 
@@ -127,6 +128,54 @@
         <Setter Property="Foreground" Value="{StaticResource Ink}" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="Margin" Value="0,0,0,16" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!-- 左栏动作行：图标槽 + 8px 间距 + 标签，横向起点与索引行同为 RailPad=16。 -->
+    <Style x:Key="RailButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
+        <Setter Property="FontSize" Value="{StaticResource TextMetaSize}" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource ProofFocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="Wash" Background="{StaticResource Sheet}" CornerRadius="2" Opacity="0" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Left" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{x:Static motion:Motion.FastXaml}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Wash" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{x:Static motion:Motion.BaseXaml}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
 </ResourceDictionary>

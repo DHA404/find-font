@@ -97,6 +97,9 @@ internal sealed class FontCoverageIndex
     /// <summary>当前缓存对应的探测指纹（0 表示还没量过）。</summary>
     internal int CurrentProbeHash => _lastProbeHash;
 
+    /// <summary>最近一次探测的字数，给状态栏用。</summary>
+    internal int CurrentProbeCount => _lastProbe.Length;
+
     internal void Clear() => _cache.Clear();
 
     private static string KeyOf(FontItem item, int probeHash) =>

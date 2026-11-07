@@ -21,6 +21,9 @@ public partial class MainViewModel
     // 与 Tokens.xaml 的 TileGap 保持同一个值：XAML 里的间距是这个数的两倍。
     private const double TileGap = 20;
 
+    // 与 Tokens.xaml 的 PageGutter 同值：行模板左右各留这么多，末列才不会被裁。
+    private const double PageGutter = 24;
+
     /// <summary>选中区间的锚点下标（Shift 连选用）。</summary>
     private int _tileAnchor = -1;
 
@@ -67,7 +70,7 @@ public partial class MainViewModel
                 if (item.TileWidth != tileWidth) item.TileWidth = tileWidth;
                 items[j] = item;
             }
-            rows.Add(new FontRow(items));
+            rows.Add(new FontRow(items, columns));
         }
 
         VisibleRows.ReplaceAll(rows);
@@ -86,11 +89,11 @@ public partial class MainViewModel
 
         // 列数要看列表自己的可用宽度，而不是窗口宽度：右栏「档案」一展开，
         // 列表就窄了，按窗口宽度算会保持三列然后把第三列挤出血。
-        var available = listWidth > 0 ? listWidth : Math.Max(0, windowWidth - 208 - 22);
+        var available = listWidth > 0 ? listWidth : Math.Max(0, windowWidth - 208 - PageGutter);
         _listViewportWidth = available;
 
-        // 行模板给 ItemsControl 留了左右各 22px，瓦片自己再各留 TileGap/2。
-        var inner = Math.Max(0, available - 2 * 22);
+        // 行模板给 ItemsControl 留了左右各 24px（与 PageGutter 同值），瓦片自己再各留 TileGap/2。
+        var inner = Math.Max(0, available - 2 * PageGutter);
         var columns = Math.Clamp((int)((inner + TileGap) / (TileSlotMin + TileGap)), 1, 3);
 
         // 向下取整到 32px 桶：向上取整会让 N 列的总宽超过可用宽度，最后一列被裁掉。

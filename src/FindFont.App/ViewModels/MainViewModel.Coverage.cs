@@ -64,7 +64,7 @@ public partial class MainViewModel
         var token = _coverageCts.Token;
 
         IsCoverageBusy = true;
-        StatusText = "正在检测字形覆盖…";
+        StatusText = "正在检测缺字…";
 
         int measured;
         try
@@ -95,10 +95,10 @@ public partial class MainViewModel
         var holes = snapshot.Count(item => item.HasCoverageHoles);
         CoverageHoleCount = holes;
 
-        var basis = measured == 0 ? "命中缓存" : $"新量 {measured} 个";
-        StatusText = string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"字形覆盖检测完成：{holes} 个字体在「{text}」下缺字（{basis}）");
+        var probed = AppServices.CoverageIndex.CurrentProbeCount;
+        StatusText = measured == 0
+            ? $"{holes} 个字体缺字，检测 {probed} 个字（命中缓存）"
+            : $"{holes} 个字体缺字，检测 {probed} 个字";
     }
 
     /// <summary>样品文字改动后防抖重测，避免每敲一个字符就量一遍全部字体。</summary>

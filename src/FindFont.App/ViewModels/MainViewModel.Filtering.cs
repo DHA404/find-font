@@ -13,7 +13,7 @@ public partial class MainViewModel
         if (IsLoading) return;
 
         IsLoading = true;
-        StatusText = "正在读取字体注册表…";
+        StatusText = "正在读取字体列表…";
         LoadProgress = 0;
 
         FontScanResult result;
@@ -36,8 +36,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(BrokenCount));
 
-        StatusText = $"已加载 {result.Items.Count} 个字体（注册表项 {result.RegistryEntries}，" +
-                     $"缺失文件 {result.MissingFiles}），耗时 {result.Elapsed.TotalMilliseconds:F0} ms";
+        StatusText = $"{result.Items.Count} 个字体 · {result.Elapsed.TotalMilliseconds:F0} ms";
 
         IsLoading = false;
 
@@ -91,7 +90,7 @@ public partial class MainViewModel
             ApplyFilter();
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(BrokenCount));
-            StatusText = $"字体信息补全完成：共 {_allFonts.Count} 个字体，异常 {BrokenCount} 个";
+            StatusText = $"已载入 {_allFonts.Count} 个字体，{BrokenCount} 处失效";
             Helpers.StartupTrace.Mark("enhance-done");
 
             // 字形覆盖检测排在补名之后，刻意不 await：首屏已经可交互，这个可以慢慢量。
@@ -219,10 +218,10 @@ public partial class MainViewModel
         RebuildFacets(counts);
 
         StatusText = string.IsNullOrWhiteSpace(SearchText)
-            ? $"共 {_allFonts.Count} 个字体，当前显示 {matches.Count} 个"
-            : $"“{SearchText.Trim()}” 匹配 {matches.Count} 个字体";
+            ? $"{_allFonts.Count} 个字体"
+            : $"“{SearchText.Trim()}” 命中 {matches.Count} 个";
 
-        if (CoverageHoleCount > 0) StatusText += $"（{CoverageHoleCount} 个缺字）";
+        if (CoverageHoleCount > 0) StatusText += $" · {CoverageHoleCount} 个缺字";
 
         OnPropertyChanged(nameof(EmptyStateText));
         OnPropertyChanged(nameof(HasNoResults));

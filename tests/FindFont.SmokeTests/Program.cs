@@ -57,6 +57,9 @@ internal static class Program
         TestRunner.Run("多列分行与筛选顺序一致", LayoutTests.TestRowChunking);
         TestRunner.Run("列数随窗口宽度收敛", LayoutTests.TestColumnConvergence);
         TestRunner.Run("瓦片选中驱动既有筛选语义", LayoutTests.TestTileSelection);
+        TestRunner.Run("间距落在 4px 网格", DesignTests.TestSpacingGrid);
+        TestRunner.Run("文字对比度达到 AA", DesignTests.TestContrast);
+        TestRunner.Run("品红不做药丸底色", DesignTests.TestNoProofWashPills);
         TestRunner.Run("源文件不超过 300 行", InfrastructureTests.TestSourceFileLineLimit);
         TestRunner.Run("四种排序键正确且稳定", FeatureTests.TestSortModes);
         TestRunner.Run("搜索高亮切分命中片段", FeatureTests.TestHighlight);

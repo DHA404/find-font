@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        一套线性图标，几何取自 lucide（ISC 许可），手写进 XAML 以避免多一个发布依赖。
+        24x24 视框，使用时统一 Width/Height=16 + Stretch=Uniform + StrokeThickness=1.5，
+        颜色永远取调用处的文字角色，图标自身不带颜色。
+    -->
+    <Geometry x:Key="IconUpload">M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12</Geometry>
+    <Geometry x:Key="IconTrash">M3 6h18 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M10 11v6 M14 11v6</Geometry>
+    <Geometry x:Key="IconEraser">M7 21l-4-4a2 2 0 0 1 0-2.8l10-10a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8L11 21z M22 21H7</Geometry>
+    <Geometry x:Key="IconRefresh">M21 12a9 9 0 1 1-3-6.7L21 8 M21 3v5h-5</Geometry>
+    <Geometry x:Key="IconInfo">M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 16v-4 M12 8h.01</Geometry>
+    <Geometry x:Key="IconFolder">M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v2 M6 14l1.5-2.9A2 2 0 0 1 9.2 10H20a2 2 0 0 1 1.9 2.4l-1.3 6a2 2 0 0 1-1.9 1.6z</Geometry>
+    <Geometry x:Key="IconFileText">M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8</Geometry>
+    <Geometry x:Key="IconCompare">M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4z M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4z</Geometry>
+
+    <!-- 图标 + 文字的固定几何：16px 槽 + 8px 间距，于是七个按钮的标签右对齐成一列。 -->
+    <Style x:Key="IconGlyph" TargetType="Path">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="StrokeStartLineCap" Value="Round" />
+        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="IconLabel" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+    </Style>
+
+</ResourceDictionary>

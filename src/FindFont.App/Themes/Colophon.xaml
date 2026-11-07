@@ -1,0 +1,95 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Tokens.xaml" />
+        <ResourceDictionary Source="Icons.xaml" />
+        <ResourceDictionary Source="Controls.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        右栏「档案」。没有选中时整栏折叠，所以这里只关心有内容的样子。
+        字段按语义分三段（标识 / 文件 / 覆盖与状态），段之间用发丝线过渡，
+        不再靠每个字段各留 16px 空白硬隔。
+    -->
+    <DataTemplate x:Key="ColophonTemplate">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20,24,20">
+            <StackPanel>
+                <TextBlock Text="档案" FontFamily="{StaticResource DisplayFace}"
+                           FontSize="{StaticResource PanelTitleSize}"
+                           Foreground="{StaticResource Ink}" Margin="0,0,0,20" />
+
+                <TextBlock Text="家族" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonFamily}" Style="{StaticResource ColophonValue}" />
+
+                <TextBlock Text="本地化名" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonLocalized}" Style="{StaticResource ColophonValue}" />
+
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="样式" Style="{StaticResource ColophonLabel}" />
+                        <TextBlock Text="{Binding ColophonStyle}" Style="{StaticResource ColophonValue}"
+                                   Margin="0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                        <TextBlock Text="字重" Style="{StaticResource ColophonLabel}" />
+                        <TextBlock Text="{Binding ColophonWeight}" Style="{StaticResource ColophonValue}"
+                                   Margin="0" />
+                    </StackPanel>
+                </Grid>
+
+                <Border Style="{StaticResource Hairline}" Margin="0,0,0,16" />
+
+                <TextBlock Text="文件" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonFileName}" Style="{StaticResource ColophonValue}" />
+
+                <TextBlock Text="路径" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonPath}" Style="{StaticResource ColophonValue}"
+                           FontSize="{StaticResource TextMetaSize}"
+                           Foreground="{StaticResource InkMuted}" />
+
+                <TextBlock Text="字面" Style="{StaticResource ColophonLabel}" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                    <TextBlock Text="{Binding ColophonFace, TargetNullValue=—}"
+                               Style="{StaticResource ColophonValue}" Margin="0" />
+                    <TextBlock Text="·" Foreground="{StaticResource InkFaint}"
+                               FontSize="{StaticResource TextBodySize}" Margin="8,0,8,0"
+                               Visibility="{Binding ColophonFace, Converter={StaticResource StringToVisibility}}" />
+                    <TextBlock Text="{Binding ColophonEmbedding}" Foreground="{StaticResource Ink}"
+                               FontSize="{StaticResource TextBodySize}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Style="{StaticResource Hairline}" Margin="0,0,0,16" />
+
+                <TextBlock Text="语言" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonLanguage}" Style="{StaticResource ColophonValue}" />
+
+                <TextBlock Text="字形覆盖" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonCoverage}" Style="{StaticResource ColophonValue}" />
+                <!-- 哪几个字有问题：全屏第二个（也是最后一个）用品红的 moment -->
+                <TextBlock Text="{Binding ColophonCoverageChars}" Margin="0,0,0,16"
+                           FontSize="{StaticResource TextBodySize}" Foreground="{StaticResource Proof}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding ColophonCoverageChars, Converter={StaticResource StringToVisibility}}" />
+
+                <TextBlock Text="状态" Style="{StaticResource ColophonLabel}" />
+                <TextBlock Text="{Binding ColophonStatus}" Style="{StaticResource ColophonValue}" />
+
+                <Border Style="{StaticResource Hairline}" Margin="0,0,0,12" />
+                <Button Style="{StaticResource RailButton}" Margin="-8,0,0,0"
+                        HorizontalAlignment="Left" Command="{Binding OpenFontFolderCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                              Data="{StaticResource IconFolder}" />
+                        <TextBlock Text="打开所在文件夹" Style="{StaticResource IconLabel}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+</ResourceDictionary>

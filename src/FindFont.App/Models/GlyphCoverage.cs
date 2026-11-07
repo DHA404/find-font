@@ -62,30 +62,53 @@ public sealed record GlyphCoverage(
         }
     }
 
-    /// <summary>缺字的示例字符，最多 12 个。</summary>
+    /// <summary>
+    /// 缺字的示例字符，最多 12 个。优先给东亚字符：中文字体缺几个 ASCII
+    /// 是常态（我们只用它排中文），把 "The quick bro" 摆在前面会盖住
+    /// 真正该看的那个「你」。
+    /// </summary>
     public string ExampleChars
     {
         get
         {
             if (!HasHoles) return string.Empty;
 
-            var builder = new StringBuilder();
-            var used = 0;
-            foreach (var ch in MissingChars)
-            {
-                if (used++ >= 12) break;
-                if (builder.Length > 0) builder.Append(' ');
-                builder.Append(ch);
-            }
-
-            foreach (var ch in EmptyChars)
-            {
-                if (used++ >= 12) break;
-                if (builder.Length > 0) builder.Append(' ');
-                builder.Append(ch);
-            }
-
-            return builder.ToString();
+            return Compose(MissingChars, EmptyChars);
         }
+    }
+
+    private static string Compose(IReadOnlyList<char> missing, IReadOnlyList<char> empty)
+    {
+        var picked = new List<char>(12);
+
+        void Take(IReadOnlyList<char> source, bool wideOnly)
+        {
+            foreach (var ch in source)
+            {
+                if (picked.Count >= 12) return;
+                if (wideOnly && ch < '\u2E80') continue;
+                if (picked.Contains(ch)) continue;
+                picked.Add(ch);
+            }
+        }
+
+        Take(missing, wideOnly: true);
+        Take(empty, wideOnly: true);
+
+        // 一个东亚字符都没有（纯西文字体缺字之类），退回原顺序，别让这行空着。
+        if (picked.Count == 0)
+        {
+            Take(missing, wideOnly: false);
+            Take(empty, wideOnly: false);
+        }
+
+        var builder = new StringBuilder();
+        foreach (var ch in picked)
+        {
+            if (builder.Length > 0) builder.Append(' ');
+            builder.Append(ch);
+        }
+
+        return builder.ToString();
     }
 }

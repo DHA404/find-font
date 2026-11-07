@@ -1,0 +1,170 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:models="clr-namespace:FindFont.App.Models">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Tokens.xaml" />
+        <ResourceDictionary Source="Icons.xaml" />
+        <ResourceDictionary Source="Converters.xaml" />
+        <ResourceDictionary Source="Controls.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        左栏索引。四段从上到下：分类（固定四项）→ 字重 → 只显示 → 动作。
+        全部从 x=16 起算（RailPad），索引行、段标签、开关、按钮标签落在同一条竖线上。
+        段标签上方 24、下方 8：让它离自己的条目比离上一段更近。
+        动作区在 700px 高的窗口里也放得下，不需要再套滚动条。
+    -->
+    <DataTemplate x:Key="IndexRailTemplate">
+        <Grid Margin="0,16,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 分类 -->
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="分类" Style="{StaticResource SectionLabel}" Margin="16,0,0,8" />
+                <ListBox ItemsSource="{Binding CategoryFacets}"
+                         SelectedIndex="{Binding SelectedCategoryIndex}"
+                         ItemContainerStyle="{StaticResource IndexRow}"
+                         BorderThickness="0" Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:FacetItem}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                           FontSize="{StaticResource TextBodySize}"
+                                           Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding CountText}" Margin="8,0,0,0"
+                                           FontSize="{StaticResource TextMetaSize}"
+                                           Foreground="{StaticResource InkMuted}" VerticalAlignment="Center"
+                                           Typography.NumeralAlignment="Tabular" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+
+            <!-- 字重 -->
+            <StackPanel Grid.Row="1" Margin="0,16,0,0">
+                <TextBlock Text="字重" Style="{StaticResource SectionLabel}" Margin="16,0,0,8" />
+                <UniformGrid Margin="12,0,12,0" Columns="2">
+                    <CheckBox Content="全部" Style="{StaticResource ChipToggle}" Margin="0,0,4,4"
+                              IsChecked="{Binding IsStyleAll}" />
+                    <CheckBox Content="常规" Style="{StaticResource ChipToggle}" Margin="4,0,0,4"
+                              IsChecked="{Binding IsStyleRegular}" />
+                    <CheckBox Content="粗体" Style="{StaticResource ChipToggle}" Margin="0,0,4,0"
+                              IsChecked="{Binding IsStyleBold}" />
+                    <CheckBox Content="斜体" Style="{StaticResource ChipToggle}" Margin="4,0,0,0"
+                              IsChecked="{Binding IsStyleItalic}" />
+                </UniformGrid>
+            </StackPanel>
+
+            <!-- 只显示 -->
+            <StackPanel Grid.Row="2" Margin="0,16,0,0">
+                <TextBlock Text="只显示" Style="{StaticResource SectionLabel}" Margin="16,0,0,8" />
+                <UniformGrid Margin="12,0,12,0" Columns="2">
+                    <CheckBox Content="失效" Style="{StaticResource ChipToggle}" Margin="0,0,4,4"
+                              IsChecked="{Binding ShowBrokenOnly}" />
+                    <CheckBox Content="缺映射" Style="{StaticResource ChipToggle}" Margin="4,0,0,4"
+                              IsChecked="{Binding ShowMissingMapOnly}" />
+                    <CheckBox Content="空字形" Style="{StaticResource ChipToggle}" Margin="0,0,4,0"
+                              IsChecked="{Binding ShowEmptyGlyphOnly}" />
+                </UniformGrid>
+            </StackPanel>
+
+            <!-- 排序 -->
+            <StackPanel Grid.Row="3" Margin="0,16,0,0">
+                <TextBlock Text="排序" Style="{StaticResource SectionLabel}" Margin="16,0,0,8" />
+                <ComboBox Style="{StaticResource FieldComboBox}" Margin="12,0,12,0"
+                          ItemsSource="{Binding SortOptions}"
+                          SelectedIndex="{Binding SelectedSortIndex}" />
+            </StackPanel>
+
+            <!-- 动作：两列并排，880 高的窗口里不需要滚动 -->
+            <StackPanel Grid.Row="4" Margin="8,16,8,0" VerticalAlignment="Top">
+                <Button Content="对比选中" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding CompareSelectedCommand}"
+                        IsEnabled="{Binding CanCompareOrSingle}"
+                        HorizontalAlignment="Stretch" Margin="4,0,4,8" />
+
+                <UniformGrid Columns="2" Margin="0,0,0,2">
+                    <Button Style="{StaticResource RailButton}" Margin="0,0,2,0"
+                            HorizontalAlignment="Stretch" Command="{Binding InstallFromFilesCommand}"
+                            ToolTip="从文件安装字体">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconUpload}" />
+                            <TextBlock Text="安装" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" Margin="2,0,0,0"
+                            HorizontalAlignment="Stretch" IsEnabled="{Binding CanUninstall}"
+                            Command="{Binding UninstallSelectedCommand}"
+                            ToolTip="卸载选中的字体">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconTrash}" />
+                            <TextBlock Text="卸载" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                </UniformGrid>
+
+                <!-- 两个低频动作并排放，给上面三个常用动作留出高度 -->
+                <UniformGrid Columns="2">
+                    <Button Style="{StaticResource RailButton}" Margin="0,0,2,0"
+                            HorizontalAlignment="Stretch" Command="{Binding CleanBrokenCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconEraser}" />
+                            <TextBlock Text="清理失效" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" Margin="2,0,0,0"
+                            HorizontalAlignment="Stretch" Command="{Binding RefreshCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconRefresh}" />
+                            <TextBlock Text="重新扫描" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                </UniformGrid>
+            </StackPanel>
+
+            <!-- 状态栏钉死在底部：进度随时可见，不被动作区滚走 -->
+            <StackPanel Grid.Row="5" Margin="0,16,0,0">
+                <Border Style="{StaticResource Hairline}" Margin="16,0,16,8" />
+                <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextMetaSize}"
+                           TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource InkMuted}" Margin="16,0,16,8" />
+                <StackPanel Orientation="Horizontal" Margin="8,0,8,0">
+                    <Button Style="{StaticResource RailButton}" Command="{Binding ShowAboutCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconInfo}" />
+                            <TextBlock Text="关于" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" Margin="4,0,0,0"
+                            Command="{Binding OpenLogFolderCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconGlyph}" Stroke="{StaticResource InkFaint}"
+                                  Data="{StaticResource IconFileText}" />
+                            <TextBlock Text="日志" Style="{StaticResource IconLabel}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+</ResourceDictionary>

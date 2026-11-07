@@ -31,6 +31,9 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         ViewModel.FilterApplied += OnFilterApplied;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        // 索引栏的「对比选中」是模板里的按钮，只能走命令；命令抛事件，这里开窗。
+        ViewModel.CompareRequested += OnCompareRequested;
         DpiChanged += OnDpiChanged;
 
         // 瓦片是模板生成的，等 ListBox 的 SelectionChanged 只会拿到「行」，
@@ -172,7 +175,7 @@ public partial class MainWindow : Window
         OpenCompareWindow();
     }
 
-    private void OnCompareClick(object sender, RoutedEventArgs e) => OpenCompareWindow();
+    private void OnCompareRequested(object? sender, EventArgs e) => OpenCompareWindow();
 
     private void OpenCompareWindow()
     {

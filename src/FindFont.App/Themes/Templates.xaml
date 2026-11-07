@@ -9,10 +9,13 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!--
-        样本瓦片。原先一行一个字体、选中后原地长到 220px，一屏只看得见六个；
-        现在一行并排 2–3 个瓦片，尺寸固定，选中只换底色 + 左侧 2px 品红竖条。
+        样本瓦片。固定尺寸，选中只换底色 + 左侧 2px 品红竖条。
         固定高度是刻意的：虚拟化回收滚动时若行高随状态变化，滚动条会不断抖。
         想看大图就双击进对比窗口，那里本来就是整幅宽度。
+
+        三行内容的预算（内高 168 = 192 − 上下 padding 各 12）：
+          样本 96 / 间距 8 / 名称行 20 / 间距 2 / 文件行 18 / 标记行 24
+        上一版行高 176 装不下第三行，缺字行被 ClipToBounds 裁掉。
     -->
     <DataTemplate x:Key="FontTileTemplate" DataType="{x:Type models:FontItem}">
         <Border x:Name="Tile" Padding="{StaticResource TilePaddingThickness}" Margin="10,0,10,0"
@@ -34,9 +37,9 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- 选中竖条：2px 品红，靠 Opacity 渐入，不参与布局 -->
-                <Border Grid.Column="0" Width="2" Margin="-16,0,10,0"
-                        Background="{StaticResource Proof}" VerticalAlignment="Stretch">
+                <!-- 校样标记：2px 品红裁切线，只画选中，靠 Opacity 渐入，不参与布局 -->
+                <Border Grid.Column="0" Width="2" Margin="-12,0,10,0"
+                        Background="{StaticResource Proof}" VerticalAlignment="Center" Height="48">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Opacity" Value="0" />
@@ -65,7 +68,7 @@
                 </Border>
 
                 <StackPanel Grid.Column="1">
-                    <!-- 样本：宽度由列宽决定，转换器按 "tile" 参数取 item.TileWidth -->
+                    <!-- 样本：全屏唯一一块有呼吸感的空白，宽度由列宽决定 -->
                     <Grid Height="{StaticResource TileSampleHeight}" ClipToBounds="True">
                         <Image Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Center"
                                RenderOptions.BitmapScalingMode="LowQuality">
@@ -86,61 +89,68 @@
                                    Visibility="{Binding PreviewBitmap, Converter={StaticResource NullToVisibility}}" />
                     </Grid>
 
-                    <!-- 元数据 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <!-- 名称行：层级靠字号与颜色，不靠字重 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Height="20">
                         <TextBlock Text="{Binding BestName}" FontSize="{StaticResource TextBodySize}"
-                                   FontWeight="SemiBold" Foreground="{StaticResource Ink}"
-                                   TextTrimming="CharacterEllipsis" />
+                                   Foreground="{StaticResource Ink}"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding StyleName}" FontSize="{StaticResource TextMetaSize}"
-                                   Margin="10,2,0,0" Foreground="{StaticResource InkMuted}" />
+                                   Margin="10,0,0,0" Foreground="{StaticResource InkMuted}"
+                                   VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Weight}" FontSize="{StaticResource TextMetaSize}"
-                                   Margin="10,2,0,0" Foreground="{StaticResource InkFaint}" />
+                                   Margin="8,0,0,0" Foreground="{StaticResource InkFaint}"
+                                   VerticalAlignment="Center"
+                                   Typography.NumeralAlignment="Tabular" />
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                    <!--
+                        文件行 + 安静的状态文本。状态不铺粉色底：
+                        面数用 InkFaint，缺字把数字点成品红，失效用 Warn —— 三种语义三种颜色。
+                    -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0" Height="18">
                         <TextBlock Text="{Binding FileName}" FontSize="{StaticResource TextMetaSize}"
-                                   Foreground="{StaticResource InkFaint}" TextTrimming="CharacterEllipsis" />
+                                   Foreground="{StaticResource InkFaint}"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
-                        <Border Background="{StaticResource ProofWash}" CornerRadius="2" Padding="6,1"
-                                Margin="10,0,0,0" VerticalAlignment="Center"
-                                Visibility="{Binding FaceLabel, Converter={StaticResource StringToVisibility}}">
-                            <TextBlock Text="{Binding FaceLabel}" FontSize="{StaticResource TextMetaSize}"
-                                       Foreground="{StaticResource Proof}" />
-                        </Border>
+                        <TextBlock Text="{Binding FaceLabel}" FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource InkFaint}" Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding FaceLabel, Converter={StaticResource StringToVisibility}}" />
 
-                        <Border Background="{StaticResource ProofWash}" CornerRadius="2" Padding="6,1"
-                                Margin="8,0,0,0" VerticalAlignment="Center"
-                                ToolTip="{Binding CoverageDetail}"
-                                Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="{Binding CoverageLabel}" FontSize="{StaticResource TextMetaSize}"
-                                       Foreground="{StaticResource Proof}" />
-                        </Border>
+                        <TextBlock FontSize="{StaticResource TextMetaSize}" Margin="10,0,0,0"
+                                   VerticalAlignment="Center" ToolTip="{Binding CoverageDetail}"
+                                   Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
+                            <!-- CoverageLabel 自带「缺字 N/M」文案，这里不再前置「缺字」 -->
+                            <Run Text="{Binding CoverageLabel, Mode=OneWay}" Foreground="{StaticResource Proof}" />
+                        </TextBlock>
 
-                        <Border Background="{StaticResource ProofWash}" CornerRadius="2" Padding="6,1"
-                                Margin="8,0,0,0" VerticalAlignment="Center"
-                                Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource TextMetaSize}"
-                                       Foreground="{StaticResource Proof}" />
-                        </Border>
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource Warn}" Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsBroken, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
 
-                    <!-- 缺字示例 / 搜索命中互相排斥地占最后一行，避免瓦片高度随状态变化 -->
-                    <TextBlock Margin="0,4,0,0" TextTrimming="CharacterEllipsis"
-                               FontSize="{StaticResource TextMetaSize}"
-                               Foreground="{StaticResource InkFaint}"
-                               Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
-                        <Run Text="缺字：" /><Run Text="{Binding CoverageExamples, Mode=OneWay}"
-                                                 Foreground="{StaticResource Proof}" />
-                    </TextBlock>
+                    <!--
+                        标记行：固定 24px，缺字示例与搜索命中互斥。
+                        缺字示例是整个界面里那一个 moment —— 具体指出哪几个字有问题。
+                    -->
+                    <Grid Height="24" Margin="0,4,0,0">
+                        <TextBlock TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   FontSize="{StaticResource TextMetaSize}"
+                                   Foreground="{StaticResource InkMuted}"
+                                   Visibility="{Binding HasCoverageHoles, Converter={StaticResource BoolToVisibility}}">
+                            <Run Text="缺字：" /><Run Text="{Binding CoverageExamples, Mode=OneWay}"
+                                                     Foreground="{StaticResource Proof}" />
+                        </TextBlock>
 
-                    <TextBlock Margin="0,4,0,0" TextTrimming="CharacterEllipsis"
-                               FontSize="{StaticResource TextMetaSize}"
-                               Visibility="{Binding HasMatch, Converter={StaticResource BoolToVisibility}}">
-                        <Run Text="{Binding MatchBefore, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
-                        <Run Text="{Binding MatchHit, Mode=OneWay}" Foreground="{StaticResource Proof}"
-                             TextDecorations="Underline" FontWeight="SemiBold" />
-                        <Run Text="{Binding MatchAfter, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
-                    </TextBlock>
+                        <TextBlock TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   FontSize="{StaticResource TextMetaSize}"
+                                   Visibility="{Binding HasMatch, Converter={StaticResource BoolToVisibility}}">
+                            <Run Text="{Binding MatchBefore, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
+                            <Run Text="{Binding MatchHit, Mode=OneWay}" Foreground="{StaticResource Proof}" />
+                            <Run Text="{Binding MatchAfter, Mode=OneWay}" Foreground="{StaticResource InkFaint}" />
+                        </TextBlock>
+                    </Grid>
                 </StackPanel>
             </Grid>
         </Border>
@@ -149,14 +159,15 @@
     <!--
         一行：固定高度的横排瓦片。列数由 ViewModel 决定（UniformGrid Rows=1
         会按 Items 数量自动均分宽度，最后一列不足时也保持等宽）。
+        左右 24 与 RowMetrics 的 PageGutter 必须一致，否则末列会被裁。
     -->
     <DataTemplate x:Key="FontRowTemplate" DataType="{x:Type models:FontRow}">
         <Border BorderBrush="{StaticResource Rule}" BorderThickness="0,0,0,1"
                 Height="{StaticResource TileRowHeight}">
-            <ItemsControl ItemsSource="{Binding Items}" Margin="22,0,22,0">
+            <ItemsControl ItemsSource="{Binding Items}" Margin="24,0,24,0">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <UniformGrid Rows="1" />
+                        <UniformGrid Rows="1" Columns="{Binding Columns}" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>

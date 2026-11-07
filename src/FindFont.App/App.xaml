@@ -5,10 +5,13 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Tokens.xaml" />
+                <ResourceDictionary Source="Themes/Icons.xaml" />
                 <ResourceDictionary Source="Themes/Converters.xaml" />
                 <ResourceDictionary Source="Themes/Controls.xaml" />
                 <ResourceDictionary Source="Themes/Scrollbars.xaml" />
                 <ResourceDictionary Source="Themes/Templates.xaml" />
+                <ResourceDictionary Source="Themes/Rail.xaml" />
+                <ResourceDictionary Source="Themes/Colophon.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

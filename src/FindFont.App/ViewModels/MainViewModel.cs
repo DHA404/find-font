@@ -43,6 +43,11 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public event EventHandler? FilterApplied;
 
+    /// <summary>
+    /// 请求打开对比窗口。视图模型不认识 Window，只抛事件，由 MainWindow 装配视图。
+    /// </summary>
+    public event EventHandler? CompareRequested;
+
     public RangeObservableCollection<FontItem> VisibleFonts { get; } = new();
 
     public ObservableCollection<FontItem> SelectedFonts { get; } = new();

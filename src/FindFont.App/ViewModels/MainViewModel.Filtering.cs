@@ -147,9 +147,10 @@ public partial class MainViewModel
     {
         if (ShowBrokenOnly && !item.IsBroken) return false;
 
-        // 缺字筛选：未检测的字体在打开这两个开关时一律排除，因为「不知道」不等于「没问题」。
+        // 缺字筛选：未检测的字体在打开这几个开关时一律排除，因为「不知道」不等于「没问题」。
         if (ShowMissingMapOnly && !item.HasMissingFromCmap) return false;
         if (ShowEmptyGlyphOnly && !item.HasEmptyGlyph) return false;
+        if (ShowHealthyOnly && (item.Coverage is null || item.HasCoverageHoles)) return false;
 
         var style = SelectedStyleIndex switch
         {

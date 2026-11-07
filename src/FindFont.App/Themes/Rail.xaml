@@ -77,8 +77,10 @@
                               IsChecked="{Binding ShowBrokenOnly}" />
                     <CheckBox Content="缺映射" Style="{StaticResource ChipToggle}" Margin="4,0,0,4"
                               IsChecked="{Binding ShowMissingMapOnly}" />
-                    <CheckBox Content="空字形" Style="{StaticResource ChipToggle}" Margin="0,0,4,0"
+                    <CheckBox Content="空字形" Style="{StaticResource ChipToggle}" Margin="0,0,4,4"
                               IsChecked="{Binding ShowEmptyGlyphOnly}" />
+                    <CheckBox Content="正常" Style="{StaticResource ChipToggle}" Margin="4,0,0,4"
+                              IsChecked="{Binding ShowHealthyOnly}" />
                 </UniformGrid>
             </StackPanel>
 

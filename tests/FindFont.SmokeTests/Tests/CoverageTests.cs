@@ -226,5 +226,14 @@ internal static class CoverageTests
 
         vm.ShowMissingMapOnly = true;
         Check(vm.VisibleFonts.Count == 0, "两个开关同时打开（AND）应没有交集");
+
+        vm.ShowMissingMapOnly = false;
+        vm.ShowEmptyGlyphOnly = false;
+        vm.ShowHealthyOnly = true;
+        Check(vm.VisibleFonts.Count == 1, $"只看正常应剩 1 项，实际 {vm.VisibleFonts.Count}");
+        Check(vm.VisibleFonts[0].FamilyName == "Clean", "只看正常应只留 Clean（未检测的不算正常）");
+
+        vm.ShowHealthyOnly = false;
+        Check(vm.VisibleFonts.Count == 4, "全部关掉应恢复 4 项");
     }
 }

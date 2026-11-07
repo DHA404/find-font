@@ -81,15 +81,188 @@
         </Setter>
     </Style>
 
+    <!--
+        下拉项：与索引栏同一套「三层叠画出选中」的语言 —— 2px 品红标尺 + 浅底，
+        出现时只动 Opacity，不做位移或缩放。
+    -->
+    <Style x:Key="FieldComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
+        <Setter Property="FontSize" Value="{StaticResource TextMetaSize}" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Grid>
+                        <Border x:Name="Hover" Background="{StaticResource Sheet}" Opacity="0" />
+                        <Rectangle x:Name="Mark" Width="2" Fill="{StaticResource Proof}"
+                                   HorizontalAlignment="Left" Opacity="0" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="{x:Static motion:Motion.FastXaml}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="{x:Static motion:Motion.FastXaml}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Mark" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        下拉框：不再沿用系统默认的灰渐变箭头，改成与输入框同一张纸 ——
+        1px 发丝边、2px 圆角、右侧一枚 8px 的细 chevron；展开时底边亮出品红标尺。
+    -->
     <Style x:Key="FieldComboBox" TargetType="ComboBox">
         <Setter Property="FontFamily" Value="{StaticResource UiFace}" />
         <Setter Property="FontSize" Value="{StaticResource TextMetaSize}" />
-        <Setter Property="Height" Value="38" />
+        <Setter Property="Height" Value="40" />
         <Setter Property="Foreground" Value="{StaticResource Ink}" />
-        <Setter Property="Padding" Value="9,4" />
-        <Setter Property="FocusVisualStyle" Value="{StaticResource ProofFocusVisual}" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{StaticResource Rule}" />
         <Setter Property="Background" Value="{StaticResource Sheet}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource FieldComboBoxItem}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 背景层铺满两列，负责边框、hover 与点击 -->
+                        <ToggleButton x:Name="Toggle" Grid.ColumnSpan="2"
+                                      Focusable="False" ClickMode="Press" Cursor="Hand"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Shell"
+                                            Background="{StaticResource Sheet}"
+                                            BorderBrush="{StaticResource Rule}"
+                                            BorderThickness="1"
+                                            CornerRadius="2"
+                                            SnapsToDevicePixels="True" />
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource InkFaint}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Shell" Property="Background" Value="{StaticResource SheetRaised}" />
+                                            <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource InkFaint}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <ContentPresenter Grid.Column="0"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+
+                        <!-- 细 chevron：8×5 折线，不填充 -->
+                        <Path x:Name="Chevron" Grid.Column="1"
+                              Margin="0,0,12,0" VerticalAlignment="Center"
+                              IsHitTestVisible="False"
+                              Data="M0,0L4,4L8,0"
+                              Stroke="{StaticResource InkMuted}"
+                              StrokeThickness="1.4"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+
+                        <Rectangle x:Name="Underline" Grid.ColumnSpan="2"
+                                   Height="2" Fill="{StaticResource Proof}"
+                                   VerticalAlignment="Bottom" Margin="0,0,0,-1"
+                                   RenderTransformOrigin="0.5,0.5" Opacity="0">
+                            <Rectangle.RenderTransform>
+                                <ScaleTransform ScaleY="0" />
+                            </Rectangle.RenderTransform>
+                        </Rectangle>
+
+                        <Popup x:Name="PART_Popup"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Placement="Bottom" VerticalOffset="3"
+                               AllowsTransparency="True" Focusable="False"
+                               PopupAnimation="None">
+                            <Border Background="{StaticResource SheetRaised}"
+                                    BorderBrush="{StaticResource Rule}"
+                                    BorderThickness="1"
+                                    CornerRadius="2"
+                                    MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer Margin="2" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Underline"
+                                                         Storyboard.TargetProperty="Opacity" To="1"
+                                                         Duration="{x:Static motion:Motion.FastXaml}" />
+                                        <DoubleAnimation Storyboard.TargetName="Underline"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1" Duration="{x:Static motion:Motion.FastXaml}"
+                                                         EasingFunction="{x:Static motion:Motion.Ease}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Underline"
+                                                         Storyboard.TargetProperty="Opacity" To="0"
+                                                         Duration="{x:Static motion:Motion.FastXaml}" />
+                                        <DoubleAnimation Storyboard.TargetName="Underline"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="0" Duration="{x:Static motion:Motion.FastXaml}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chevron" Property="Stroke" Value="{StaticResource Rule}" />
+                            <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
 </ResourceDictionary>

@@ -26,6 +26,9 @@ public partial class MainViewModel
     /// <summary>只留下「有映射但轮廓为空」的字体。</summary>
     [ObservableProperty] private bool _showEmptyGlyphOnly;
 
+    /// <summary>只留下「当前样品串下一个字都不缺」的字体；没检测过的不算正常。</summary>
+    [ObservableProperty] private bool _showHealthyOnly;
+
     /// <summary>覆盖检测进行中（状态栏用）。</summary>
     [ObservableProperty] private bool _isCoverageBusy;
 
@@ -35,6 +38,8 @@ public partial class MainViewModel
     partial void OnShowMissingMapOnlyChanged(bool value) => ApplyFilter();
 
     partial void OnShowEmptyGlyphOnlyChanged(bool value) => ApplyFilter();
+
+    partial void OnShowHealthyOnlyChanged(bool value) => ApplyFilter();
 
     /// <summary>当前用来检测的样品串。</summary>
     private string CoverageProbeText =>
